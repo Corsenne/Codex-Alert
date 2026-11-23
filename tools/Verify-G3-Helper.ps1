@@ -20,7 +20,7 @@ try {
     # Defend against the previous duplicated-content regression even if
     # individual copied chunks happen to be parseable.
     $source = [IO.File]::ReadAllText($target)
-    if (($source.Split(@('G3_CODEX_SESSION_META_ID_PASS'),[StringSplitOptions]::None).Length - 1) -ne 1) {
+    if (([regex]::Matches($source, 'G3_CODEX_SESSION_META_ID_PASS').Count) -ne 1) {
         Write-Host 'G3_HELPER_DUPLICATE_BLOCK_HOLD'
         exit 2
     }
