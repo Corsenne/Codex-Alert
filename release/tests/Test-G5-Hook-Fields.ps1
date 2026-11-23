@@ -3,7 +3,7 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference='Stop'
-$file=Join-Path (Split-Path -Parent $PSScriptRoot) 'release\Manage-Release.ps1'
+$file=Join-Path (Split-Path -Parent $PSScriptRoot) 'Manage-Release.ps1'
 $tokens=$null;$errs=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($file,[ref]$tokens,[ref]$errs)
 if(@($errs).Count){foreach($err in $errs){Write-Host ('G5_PARSER_ERROR='+$err.ToString())};throw 'G5_HOOK_SCRIPT_PARSE_HOLD'}
