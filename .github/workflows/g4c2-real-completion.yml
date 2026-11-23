@@ -47,12 +47,17 @@ jobs:
       - name: Verify SHA-256 helper without Get-FileHash (Windows PowerShell 5.1)
         shell: powershell
         run: |
-          $source=Get-Content -LiteralPath 'tools/G4C2-Register.ps1' -Raw
-          $functionStart=$source.IndexOf('function Get-Sha256Hex(')
-          $functionEnd=$source.IndexOf("`ntry {", $functionStart)
-          if($functionStart -lt 0 -or $functionEnd -lt 0){throw 'G4C2_HASH_HELPER_NOT_FOUND'}
-          $definition=$source.Substring($functionStart,$functionEnd-$functionStart)
-          Invoke-Expression $definition
+          $t=$null; $parseErrors=$null
+          $ast=[System.Management.Automation.Language.Parser]::ParseFile(
+            'tools/G4C2-Register.ps1',[ref]$t,[ref]$parseErrors)
+          if(@($parseErrors).Count -ne 0){throw 'G4C2_HASH_HELPER_AST_INVALID'}
+          $helper=$ast.Find({
+            param($node)
+            $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
+              $node.Name -eq 'Get-Sha256Hex'
+          },$true)
+          if($null -eq $helper){throw 'G4C2_HASH_HELPER_NOT_FOUND'}
+          Invoke-Expression $helper.Extent.Text
           $testFile=Join-Path $env:RUNNER_TEMP 'g4c2-sha256-fixture.bin'
           [System.IO.File]::WriteAllBytes($testFile,[System.Text.Encoding]::ASCII.GetBytes('abc'))
           $actual=Get-Sha256Hex $testFile
