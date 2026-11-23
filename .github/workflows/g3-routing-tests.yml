@@ -8,6 +8,8 @@ on:
       - "tools/G3-Check-Codex-Link.ps1"
       - "tools/Verify-G3-Helper.ps1"
       - "G3-Check-Codex-Link.cmd"
+      - "G3-Click-Test.cmd"
+      - "tools/Run-G3-Click-Test.ps1"
       - ".github/workflows/g3-routing-tests.yml"
   pull_request:
     paths:
@@ -15,6 +17,8 @@ on:
       - "tools/G3-Check-Codex-Link.ps1"
       - "tools/Verify-G3-Helper.ps1"
       - "G3-Check-Codex-Link.cmd"
+      - "G3-Click-Test.cmd"
+      - "tools/Run-G3-Click-Test.ps1"
       - ".github/workflows/g3-routing-tests.yml"
 permissions:
   contents: read
@@ -31,6 +35,7 @@ jobs:
         run: |
           node --test candidate-g3/routing.test.mjs
           node candidate-g3/chrome-extension/tests/exact-route.cjs
+          node --test candidate-g3/isolated-desktop/tests/g3-click-contract.test.mjs
 
   windows-routing:
     runs-on: windows-latest
@@ -41,6 +46,20 @@ jobs:
         run: |
           & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\Verify-G3-Helper.ps1
           if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Parse isolated G3 click sender and launcher with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $check = @("tools/Run-G3-Click-Test.ps1", "candidate-g3/scripts/Send-G3.ps1")
+          foreach ($path in $check) {
+            $tokens = $null
+            $errorsFound = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errorsFound)
+            if (@($errorsFound).Count -gt 0) {
+              Write-Host "G3_CLICK_POWERSHELL_PARSE_HOLD"
+              exit 1
+            }
+          }
+          Write-Host "G3_CLICK_POWERSHELL_PARSE_PASS"
       - name: Test G3 PowerShell Stop link mapping
         shell: powershell
         run: |
