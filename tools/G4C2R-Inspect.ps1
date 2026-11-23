@@ -12,7 +12,12 @@ $allowed=@(
  'G4_CHATGPT_CLOSE_FAILED','G2B_REQUEST_LINE_READ',
  'G2B_REQUEST_INVALID','G2B_WEBVIEW_NOT_READY',
  'G2B_PAGE_LOAD_STARTED','G2B_PAGE_LOAD_FINISHED',
- 'G2B_UI_READY_INVOKED','G2B_EVENT_LISTENER_REGISTERED'
+ 'G2B_UI_READY_INVOKED','G2B_EVENT_LISTENER_REGISTERED',
+ 'G4R_STALE_ACTION_IGNORED','G4R_PROMOTED_WAIT_LE_5S',
+ 'G4R_PROMOTED_WAIT_GT_5S','G4R_STALE_QUEUED_DROPPED',
+ 'G4R_PROMOTED_NEXT','G4R_NATIVE_HIDE_FAILED',
+ 'G4R_NATIVE_HIDE_PASS','G4R_NATIVE_VISIBLE_TIMEOUT',
+ 'G4R_NATIVE_UNPAINTED_TIMEOUT'
 )
 $allowSet=@{};foreach($name in $allowed){$allowSet[$name]=$true}
 function Inspect-Trace([string]$name,[string]$file){
@@ -43,7 +48,10 @@ function Inspect-Trace([string]$name,[string]$file){
                      'G2B_EVENT_DUPLICATE','G2B_EVENT_REJECTED',
                      'G4_CHATGPT_VOICE_REQUESTED','G4_CHATGPT_CLOSE_SENT',
                      'G4_AUDIO_STOP_BEFORE_ROUTE','G4_CHATGPT_CALLBACK_SENT',
-                     'G2B_ACK_SENT')){
+                     'G2B_ACK_SENT','G4R_NATIVE_VISIBLE_TIMEOUT',
+                     'G4R_NATIVE_UNPAINTED_TIMEOUT','G4R_STALE_QUEUED_DROPPED',
+                     'G4R_PROMOTED_NEXT','G4R_PROMOTED_WAIT_GT_5S',
+                     'G4R_STALE_ACTION_IGNORED')){
    $count=@($valid|Where-Object{$_ -ceq $stage}).Count
    Write-Host ('G4C2R_COUNT_'+$stage+'='+$count)
  }

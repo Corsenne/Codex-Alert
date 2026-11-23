@@ -13,6 +13,11 @@ test('G4C2R only reads allowlisted stage names from known local trace files',()=
  assert.match(x,/G4C2R_UNRECOGNIZED_LINES/);
  assert.match(x,/G4C2R_TIMING_NOT_VERIFIABLE_NO_STAGE_TIMESTAMPS/);
  assert.match(x,/G4C2R_ROOT_CAUSE=HOLD/);
+ assert.match(x,/G4R_NATIVE_VISIBLE_TIMEOUT/);
+ assert.match(x,/G4R_NATIVE_UNPAINTED_TIMEOUT/);
+ assert.match(x,/G4R_STALE_QUEUED_DROPPED/);
+ assert.match(x,/G4R_PROMOTED_WAIT_GT_5S/);
+ assert.match(x,/G4R_STALE_ACTION_IGNORED/);
  assert.doesNotMatch(x,/^\s*(?:Stop-Process|Start-Process|Remove-Item|Set-Item|New-Item|Set-Content|Add-Content)\b/gm);
 });
 test('G4C2R CMD runs only offline reader',()=>{
