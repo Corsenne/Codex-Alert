@@ -34,7 +34,7 @@ jobs:
       - name: Parse G3C setup, start, clean and build scripts
         shell: powershell
         run: |
-          $paths = @("tools/G3C-Build.ps1", "tools/G3C-Register.ps1", "tools/G3C-Start.ps1", "tools/G3C-Cleanup.ps1")
+          $paths = @("tools/G3C-Build.ps1", "tools/G3C-Register.ps1", "tools/G3C-Start.ps1", "tools/G3C-Cleanup.ps1", "tools/G3C-CI-Desktop.ps1")
           foreach ($file in $paths) {
             $tokens = $null
             $err = $null
@@ -50,3 +50,16 @@ jobs:
           cargo build --manifest-path candidate-g3c/native-host/Cargo.toml
           if ($LASTEXITCODE -ne 0) { exit 1 }
           Write-Host 'G3C_WINDOWS_BRIDGE_BUILD_PASS'
+
+  windows-desktop:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Build complete G3C isolated desktop with synthetic silent audio
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G3C-CI-Desktop.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
