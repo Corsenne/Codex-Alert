@@ -228,7 +228,12 @@ fn run()->io::Result<()> {
         let ack=serde_json::from_str::<Value>(&response)?;
         if ack.get("type").and_then(Value::as_str)!=Some("delivery.ack") ||
             ack.get("eventId").and_then(Value::as_str)!=Some(id.as_str()){return Err(io::Error::new(io::ErrorKind::InvalidData,"bad ack event"));}
-        if ack.get("ok").and_then(Value::as_bool)!=Some(true){pending.lock().unwrap().remove(&id);}
+        // A duplicate was already admitted earlier; it will NOT produce another
+        // banner/click callback. Do not hold its routing ID until watchdog expiry.
+        if ack.get("ok").and_then(Value::as_bool)!=Some(true) ||
+           ack.get("state").and_then(Value::as_str)==Some("duplicate"){
+            pending.lock().unwrap().remove(&id);
+        }
         send_chrome(&stdout,&ack)?;
     }
     Ok(())
