@@ -83,7 +83,10 @@ function Extension([string]$dir){
  $file=Join-Path $dir 'manifest.json'
  if(-not(Test-Path -LiteralPath $file -PathType Leaf)){Fail 'G5_EXTENSION_MANIFEST_MISSING'}
  $m=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json
- if($m.manifest_version -ne 3 -or $m.name -cne 'ChatGPT Finish Alert — Desktop Edition' -or [string]$m.version -cnotmatch '^1\.(1|2)\.\d+'){Fail 'G5_EXTENSION_NOT_APPROVED'}
+ # Windows PowerShell 5.1 reads UTF-8 without BOM as ANSI. Construct the
+ # Unicode em dash from its code point so manifest identity stays exact.
+ $expectedName='ChatGPT Finish Alert '+[char]0x2014+' Desktop Edition'
+ if($m.manifest_version -ne 3 -or [string]$m.name -cne $expectedName -or [string]$m.version -cnotmatch '^1\.(1|2)\.\d+'){Fail 'G5_EXTENSION_NOT_APPROVED'}
  Write-Host 'G5_EXTENSION_SOURCE_DIRECTORY_VERIFIED'
  return $dir
 }

@@ -1,0 +1,25 @@
+name: G5 Chrome Extension Manifest Unicode Compatibility
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/Manage-Release.ps1'
+      - 'release/tests/Test-G5-Extension-Unicode.ps1'
+      - '.github/workflows/g5-extension-unicode.yml'
+  pull_request:
+    paths:
+      - 'release/Manage-Release.ps1'
+      - 'release/tests/Test-G5-Extension-Unicode.ps1'
+      - '.github/workflows/g5-extension-unicode.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify exact v1.1.5 Chrome extension name under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File release/tests/Test-G5-Extension-Unicode.ps1
+          if($LASTEXITCODE -ne 0){throw 'G5_EXTENSION_UNICODE_HOLD'}
