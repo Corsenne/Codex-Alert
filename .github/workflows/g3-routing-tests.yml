@@ -20,6 +20,9 @@ on:
       - "G3-Click-Test.cmd"
       - "tools/Run-G3-Click-Test.ps1"
       - ".github/workflows/g3-routing-tests.yml"
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
