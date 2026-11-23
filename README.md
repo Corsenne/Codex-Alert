@@ -17,3 +17,7 @@ Finish the real Codex Stop-to-G4 delivery and verified exact-thread click; then 
 No additional Chrome-background, 90-second idle, repeated five-completion or process-soak test is a release prerequisite. Production still HOLD until the real Codex Hook and migration are complete.
 
 Read `docs/G4_TO_G5_PRACTICAL_FINISH_2026-11-23.md` for the remaining implementation contract.
+
+## v1.2.0 installer candidate
+
+The release packaging source lives in `release/`. On the original Windows PC run `G5-Build-Installer.cmd` for a **real, private-audio NSIS EXE**; first installation is non-mutating until `G5-Activate.cmd` is explicitly confirmed. Later updates use the same EXE identity. `G5-Rollback.cmd` restores the original. [Release plan](docs/G5_V120_INSTALLER_AND_UPDATES_2026-11-23.md).

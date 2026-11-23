@@ -1,0 +1,49 @@
+name: G5 v1.2.0 NSIS Release Candidate Build
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'release/**'
+      - 'G5-*.cmd'
+      - 'candidate-g4/**'
+      - '.github/workflows/g5-nsis-release.yml'
+  pull_request:
+    paths:
+      - 'release/**'
+      - 'G5-*.cmd'
+      - 'candidate-g4/**'
+      - '.github/workflows/g5-nsis-release.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  windows-nsis:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse release PowerShell scripts and verify installer config
+        shell: powershell
+        run: |
+          foreach($name in @('release/Build-Installer.ps1','release/Manage-Release.ps1','candidate-g4/Codex-Stop-to-G4.ps1')){
+            $tok=$null;$errs=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($name,[ref]$tok,[ref]$errs)
+            if(@($errs).Count -ne 0){$errs|Select-Object -First 4|ForEach-Object{Write-Host $_};throw 'G5_POWERSHELL_PARSER_HOLD'}
+          }
+          $cfg=Get-Content 'release/tauri-release.conf.json' -Raw|ConvertFrom-Json
+          if($cfg.identifier -cne 'com.corsenne.finishalertdesktop.unified' -or
+             $cfg.bundle.windows.nsis.installMode -cne 'currentUser' -or
+             $cfg.bundle.targets[0] -cne 'nsis'){
+            throw 'G5_RELEASE_IDENTITY_HOLD'
+          }
+          Write-Host 'G5_RELEASE_SOURCE_CONTRACT_PASS'
+      - name: Build synthetic-only NSIS without distribution of private voices
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'release/Build-Installer.ps1' -CiSynthetic
+          if($LASTEXITCODE -ne 0){throw 'G5_SYNTHETIC_NSIS_BUILD_HOLD'}
