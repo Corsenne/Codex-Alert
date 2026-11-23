@@ -20,10 +20,17 @@ try{
     $valid=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File $adapter -DryRun -SyntheticInput $hookFile -CodexHome $codexRoot)
     if($LASTEXITCODE -ne 0 -or $valid.Count -ne 1){throw 'G4C4_DRYRUN_NOT_ONE_EVENT'}
     $event=$valid[0]|ConvertFrom-Json
-    if($event.version -ne 3 -or $event.type -cne 'deliver' -or $event.event.source -cne 'codex' -or
-       $event.event.openTarget -cne ('codex://threads/'+$id) -or
-       $event.event.transcriptPath -cne $file -or
-       $event.event.chatTitle -cne 'TALOS' -or $event.soundId -cne 'leo'){throw 'G4C4_VALID_EVENT_MISMATCH'}
+    $checks=[ordered]@{
+        version=($event.version -eq 3)
+        type=($event.type -ceq 'deliver')
+        source=($event.event.source -ceq 'codex')
+        exact_thread=($event.event.openTarget -ceq ('codex://threads/'+$id))
+        transcript_proof=($event.event.transcriptPath -ceq $file)
+        title=($event.event.chatTitle -ceq 'TALOS')
+        voice=($event.soundId -ceq 'leo')
+    }
+    foreach($c in $checks.Keys){Write-Host ('G4C4_CHECK_'+$c.ToUpperInvariant()+'='+$checks[$c])}
+    if(@($checks.Values|Where-Object{$_ -eq $false}).Count -gt 0){throw 'G4C4_VALID_EVENT_MISMATCH'}
     Write-Host 'G4C4_VERIFIED_CODEX_SESSION_DRYRUN_PASS'
     $msg.stop_hook_active=$true
     $msg|ConvertTo-Json -Compress|Set-Content -LiteralPath $hookFile -Encoding UTF8
