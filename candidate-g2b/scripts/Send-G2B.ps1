@@ -7,8 +7,9 @@ $pipe=[System.IO.Pipes.NamedPipeClientStream]::new('.', $name, [System.IO.Pipes.
 try {
     $pipe.Connect(7000)
     # Do not assign ReadTimeout/WriteTimeout: this pipe stream does not support the setters.
-    $writer=New-Object System.IO.StreamWriter($pipe,(New-Object System.Text.UTF8Encoding($false)),1024,$true)
-    $reader=New-Object System.IO.StreamReader($pipe,(New-Object System.Text.UTF8Encoding($false)),$false,1024,$true)
+    $utf8=[System.Text.UTF8Encoding]::new($false)
+    $writer=[System.IO.StreamWriter]::new($pipe,$utf8,1024,$true)
+    $reader=[System.IO.StreamReader]::new($pipe,$utf8,$false,1024,$true)
     try {
         $uid=[guid]::NewGuid().ToString('N')
         $now=[DateTime]::UtcNow.ToString('o')
