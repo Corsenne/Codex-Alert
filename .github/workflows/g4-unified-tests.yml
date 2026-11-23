@@ -20,6 +20,9 @@ on:
       - 'candidate-g4/scripts/Send-G4-Mixed.ps1'
       - 'G4-*.cmd'
       - '.github/workflows/g4-unified-tests.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
