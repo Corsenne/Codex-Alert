@@ -12,10 +12,13 @@ test('G3 isolated app has unique app ID and IPC endpoint',()=>{
  assert.doesNotMatch(ipc,/corsenne_finish_alert_v2_/);
 });
 test('G3 click stops sound before opening only the authorized Codex link',()=>{
- const source=read('src-tauri/src/lib.rs');
+ // Git on Windows can check out Rust files with CRLF instead of LF.
+ // Normalize both forms before locating the native completion handler.
+ const source=read('src-tauri/src/lib.rs').replace(/\r\n/g,'\n');
  const start=source.indexOf('fn complete_notification(');
+ assert.ok(start>=0,'native complete_notification function is missing');
  const end=source.indexOf('#[cfg(windows)]\nfn open_chat_url',start);
- assert.ok(start>=0 && end>start);
+ assert.ok(end>start,'native completion function boundary is missing');
  const block=source.slice(start,end);
  const stop=block.indexOf('stop_audio();');
  const click=block.indexOf('if action=="click"');
@@ -39,4 +42,14 @@ test('GUI handler has no production Chrome open callback in synthetic test',()=>
  assert.match(lib,/G3_OTHER_SOURCE_CLICK_IGNORED/);
  assert.match(lib,/G3_LEO_PLAY_REQUESTED/);
  assert.match(lib,/G2B_UI_READY_PASS/);
+});
+
+test('G3 Rust completion boundary matches both Unix LF and Windows CRLF',()=>{
+ const original=read('src-tauri/src/lib.rs').replace(/\r\n/g,'\n');
+ for(const source of [original,original.replace(/\n/g,'\r\n')]) {
+   const normalized=source.replace(/\r\n/g,'\n');
+   const start=normalized.indexOf('fn complete_notification(');
+   const end=normalized.indexOf('#[cfg(windows)]\nfn open_chat_url',start);
+   assert.ok(start>=0 && end>start,'cross-platform Rust line endings must parse');
+ }
 });
