@@ -6,11 +6,19 @@ on:
     paths:
       - 'candidate-g4/**'
       - 'tools/G4-CI-Desktop.ps1'
+      - 'tools/G4-Build.ps1'
+      - 'tools/G4-Synthetic-Test.ps1'
+      - 'candidate-g4/scripts/Send-G4-Mixed.ps1'
+      - 'G4-*.cmd'
       - '.github/workflows/g4-unified-tests.yml'
   pull_request:
     paths:
       - 'candidate-g4/**'
       - 'tools/G4-CI-Desktop.ps1'
+      - 'tools/G4-Build.ps1'
+      - 'tools/G4-Synthetic-Test.ps1'
+      - 'candidate-g4/scripts/Send-G4-Mixed.ps1'
+      - 'G4-*.cmd'
       - '.github/workflows/g4-unified-tests.yml'
 permissions:
   contents: read
@@ -52,6 +60,11 @@ jobs:
           $tokens=$null; $errs=$null
           [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4-CI-Desktop.ps1',[ref]$tokens,[ref]$errs)
           if (@($errs).Count -gt 0) { throw 'G4_CI_POWERSHELL_PARSER_HOLD' }
+          foreach ($name in @('tools/G4-Build.ps1','tools/G4-Synthetic-Test.ps1','candidate-g4/scripts/Send-G4-Mixed.ps1')) {
+            $tokens = $null; $errorsFound = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($name,[ref]$tokens,[ref]$errorsFound)
+            if (@($errorsFound).Count -gt 0) { throw 'G4_USER_RUNNER_PARSER_HOLD' }
+          }
           Write-Host 'G4_CI_POWERSHELL_PARSER_PASS'
       - name: Full isolated G4 desktop build with generated silent audio/icons
         shell: powershell
