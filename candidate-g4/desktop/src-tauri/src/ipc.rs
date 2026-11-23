@@ -213,7 +213,7 @@ mod tests{
   use super::*;
   #[test]fn valid_event_accepts_test_and_denies_control_chars(){
     let m=json!({"version":2,"type":"deliver","soundId":"holo","event":{
-      "version":2,"eventId":"test-00000000-0000","chatTitle":"JARVIS", "completedAt":"2026-11-03T09:00:00Z", "conversationUrl":null,"bridgeCallbackPipe":r"\\.\pipe\corsenne_finish_alert_g3c_cb_1_12345"}});
+      "version":2,"eventId":"test-00000000-0000","chatTitle":"JARVIS", "completedAt":"2026-11-03T09:00:00Z", "conversationUrl":null,"bridgeCallbackPipe":r"\\.\pipe\corsenne_finish_alert_g4_cb_1_12345"}});
     assert!(check_request(&m).is_some());
     let mut bad=m.clone();bad["event"]["chatTitle"]=json!("line\nnewline");assert!(check_request(&bad).is_none());
     let mut voice=m.clone();voice["soundId"]=json!("female");voice["soundVolume"]=json!(35);
