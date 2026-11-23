@@ -7,12 +7,19 @@ try{
     $hook=@{hook_event_name='Stop';session_id='01a1d17b-189a-7aa3-b85f-2d9f310e040a';turn_id='turn-0001';cwd='C:\Work\TALOS';stop_hook_active=$false;last_assistant_message='PRIVATE TEST PHRASE'}
     $file=Join-Path $dir 'stop.json'
     $hook | ConvertTo-Json | Set-Content -LiteralPath $file -Encoding UTF8
-    $raw=& $relay -SyntheticInput $file -DryRun
-    $msg=$raw|ConvertFrom-Json
-    if($msg.version -ne 3 -or $msg.event.source -ne 'codex' -or $msg.event.chatTitle -ne 'TALOS' -or $msg.soundId -ne 'leo'){throw 'mapping failed'}
-    if($raw -match 'PRIVATE TEST PHRASE' -or $raw -match 'C:\\Work\\TALOS'){throw 'sensitive payload leaked'}
-    $again=& $relay -SyntheticInput $file -DryRun | ConvertFrom-Json
-    if($again.event.eventId -ne $msg.event.eventId){throw 'nondeterministic event ID'}
+    $outputs=@(& $relay -SyntheticInput $file -DryRun)
+    if ($outputs.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string]$outputs[0])) {
+        throw 'G1_DRYRUN_NO_PIPELINE_OUTPUT'
+    }
+    $raw=[string]$outputs[0]
+    try { $msg=$raw | ConvertFrom-Json -ErrorAction Stop }
+    catch { throw 'G1_DRYRUN_INVALID_JSON' }
+    if($msg.version -ne 3 -or $msg.event.source -ne 'codex' -or $msg.event.chatTitle -ne 'TALOS' -or $msg.soundId -ne 'leo'){throw 'G1_EVENT_MAPPING_MISMATCH'}
+    if($raw.Contains('PRIVATE TEST PHRASE') -or $raw.Contains('C:\Work\TALOS')){throw 'G1_PRIVATE_HOOK_CONTENT_ESCAPED'}
+    $repeatOutput=@(& $relay -SyntheticInput $file -DryRun)
+    if($repeatOutput.Count -ne 1){throw 'G1_REPLAY_DRYRUN_OUTPUT_COUNT_FAILED'}
+    $again=$repeatOutput[0] | ConvertFrom-Json -ErrorAction Stop
+    if($again.event.eventId -ne $msg.event.eventId){throw 'G1_EVENT_ID_NONDETERMINISTIC'}
     $hook.hook_event_name='PermissionRequest';$hook|ConvertTo-Json|Set-Content -LiteralPath $file -Encoding UTF8
     if(@(& $relay -SyntheticInput $file -DryRun).Count -ne 0){throw 'approval event emitted'}
     $hook.hook_event_name='Stop';$hook.stop_hook_active=$true;$hook|ConvertTo-Json|Set-Content -LiteralPath $file -Encoding UTF8
