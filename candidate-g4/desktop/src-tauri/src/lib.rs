@@ -20,6 +20,8 @@ pub struct AlertEvent {
     pub completed_at:String,
     #[serde(default)] pub source:Option<String>,
     #[serde(default)] pub open_target:Option<String>,
+    // Codex provenance is local-only, not exposed to frontend or logs.
+    #[serde(default,skip_serializing)] pub transcript_path:Option<String>,
     #[serde(default)] pub conversation_url:Option<String>,
     #[serde(default,skip_serializing)] pub bridge_callback_pipe:Option<String>,
     #[serde(default)] pub tab_id:i32,
@@ -270,7 +272,10 @@ fn finish_event(app:&tauri::AppHandle,shared:&Arc<Shared>,event_id:&str,action:&
                 let approved=std::env::var("FINISH_ALERT_G4_ALLOWED_CODEX_LINK").ok();
                 match target {
                     Some(uri) if g4_thread::valid_codex_thread_target(uri)
-                          && approved.as_deref()==Some(uri) =>{
+                        && match finished.event.transcript_path.as_deref(){
+                            Some(path)=>g4_thread::verified_codex_session_link(uri,path),
+                            None=>approved.as_deref()==Some(uri), // explicit G3 synthetic test only
+                        } =>{
                         let dispatched=g4_thread::open_codex_thread_target(uri);
                         ipc::g2b_trace(if dispatched{"G4_CODEX_ROUTE_DISPATCHED"}else{"G4_CODEX_ROUTE_FAILED"});
                     },

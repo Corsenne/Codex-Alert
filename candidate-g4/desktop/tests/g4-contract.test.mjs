@@ -69,3 +69,16 @@ test('Native G4R timeout independent of JS timer and no stale navigation',()=>{
  assert.match(view,/finish-alert:cleared/);
  assert.doesNotMatch(view,/setTimeout\(\(\)=>onFinish\(event\.eventId,'timeout'\)/);
 });
+
+test('G4 real Codex link is verified both at admission and at click',()=>{
+ const ipc=read('src-tauri/src/ipc.rs');
+ const lib=read('src-tauri/src/lib.rs');
+ const rust=read('src-tauri/src/g4_thread.rs');
+ assert.match(ipc,/verified_codex_session_link\(uri,path\)/);
+ assert.match(lib,/verified_codex_session_link\(uri,path\)/);
+ assert.match(lib,/skip_serializing\)\] pub transcript_path/);
+ assert.match(rust,/canonicalize\(session_root\)/);
+ assert.match(rust,/path\.starts_with\(&root\)/);
+ assert.match(rust,/MAX_FIRST_LINE/);
+ assert.match(rust,/session_meta/);
+});

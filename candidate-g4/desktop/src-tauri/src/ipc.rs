@@ -85,10 +85,15 @@ fn check_request_v3(msg:&Value)->Option<(AlertEvent,String,u8,bool)> {
     let event=msg.get("event")?;
     if event.get("version")?.as_u64()?!=3 || event.get("source")?.as_str()? != "codex" {return None;}
     let parsed:AlertEvent=serde_json::from_value(event.clone()).ok()?;
-    if parsed.version!=3 || parsed.source.as_deref()!=Some("codex") ||
-       parsed.open_target.as_deref().map_or(false,|uri|
-           !crate::g4_thread::valid_codex_thread_target(uri) ||
-           std::env::var("FINISH_ALERT_G4_ALLOWED_CODEX_LINK").ok().as_deref()!=Some(uri)) ||
+    // Verify provenance for each real Codex thread (the G3 one-link test remains isolated).
+    let link_ok=match (parsed.open_target.as_deref(),parsed.transcript_path.as_deref()){
+        (None,None)=>true,
+        (Some(uri),Some(path))=>crate::g4_thread::verified_codex_session_link(uri,path),
+        (Some(uri),None)=>crate::g4_thread::valid_codex_thread_target(uri) &&
+            std::env::var("FINISH_ALERT_G4_ALLOWED_CODEX_LINK").ok().as_deref()==Some(uri),
+        (None,Some(_))=>false,
+    };
+    if parsed.version!=3 || parsed.source.as_deref()!=Some("codex") || !link_ok ||
        parsed.conversation_url.is_some() || parsed.bridge_callback_pipe.is_some() ||
        parsed.tab_id!=0 || parsed.window_id!=0 {return None;}
     if !parsed.event_id.starts_with("codex-") || parsed.event_id.len()!=38 ||
@@ -226,6 +231,7 @@ mod tests{
        "chatTitle":"TALOS","completedAt":"2026-11-23T01:00:00Z","openTarget":null}});
     assert!(check_request(&codex).is_some());
     let mut bad=codex.clone();bad["event"]["source"]=json!("chatgpt");assert!(check_request(&bad).is_none());
+    let mut bad=codex.clone();bad["event"]["transcriptPath"]=json!(r"C:\sneaky.jsonl");assert!(check_request(&bad).is_none());
     let mut bad=codex.clone();bad["event"]["openTarget"]=json!("https://bad.invalid/");assert!(check_request(&bad).is_none());
     let mut bad=codex.clone();bad["event"]["chatTitle"]=json!("line\nnewline");assert!(check_request(&bad).is_none());
     let mut bad=codex.clone();bad["soundVolume"]=json!(101);assert!(check_request(&bad).is_none());
