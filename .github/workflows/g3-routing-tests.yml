@@ -41,6 +41,14 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Run G3 click contract with Windows path/newline conventions
+        shell: pwsh
+        run: |
+          node --test candidate-g3/isolated-desktop/tests/g3-click-contract.test.mjs
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Parse interactive G3 Codex link helper with Windows PowerShell 5.1
         shell: powershell
         run: |
