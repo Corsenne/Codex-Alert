@@ -104,7 +104,7 @@ fn check_request(msg:&Value)->Option<(AlertEvent,String,u8,bool)> {
 // The original writer thread and read loop shared a non-overlapped pipe handle.
 // Cross-thread synchronous read/write may block each other on this handle.
 // This is NOT the final production duplex/callback architecture.
-fn trace(stage:&str){
+pub(crate) fn g2b_trace(stage:&str){
     use std::{fs::OpenOptions,io::Write};
     let Some(path)=std::env::var_os("FINISH_ALERT_G2B_TRACE") else {return};
     let Ok(mut f)=OpenOptions::new().create(true).append(true).open(path) else{return};
@@ -117,25 +117,25 @@ fn write_ack(output:&mut File, response:Value)->io::Result<()>{
     output.flush()
 }
 fn handle_connection(file:File,app:AppHandle,shared:Arc<Shared>){
-    trace("G2B_PIPE_ACCEPTED");
+    g2b_trace("G2B_PIPE_ACCEPTED");
     let mut input=BufReader::new(file);
     let mut line=String::new();
     loop {
         line.clear();
         match input.read_line(&mut line) {
-            Ok(0)=>{trace("G2B_PIPE_EOF");break;},
-            Ok(n) if n<=8192=>trace("G2B_REQUEST_LINE_READ"),
-            _=>{trace("G2B_READ_ERROR_OR_OVERSIZE");break;},
+            Ok(0)=>{g2b_trace("G2B_PIPE_EOF");break;},
+            Ok(n) if n<=8192=>g2b_trace("G2B_REQUEST_LINE_READ"),
+            _=>{g2b_trace("G2B_READ_ERROR_OR_OVERSIZE");break;},
         }
         let parsed=serde_json::from_str::<Value>(&line);
         let id=parsed.as_ref().ok().and_then(|x|x.get("event")).and_then(|x|x.get("eventId"))
             .and_then(Value::as_str).unwrap_or("").to_string();
         let Some((event,sound,volume,native_audio))=parsed.ok().as_ref().and_then(check_request) else{
-            trace("G2B_REQUEST_INVALID");
+            g2b_trace("G2B_REQUEST_INVALID");
             if write_ack(input.get_mut(),json!({"type":"delivery.ack","eventId":id,"ok":false,"error":"invalid-event"})).is_err(){
-                trace("G2B_ACK_WRITE_FAILED");break;
+                g2b_trace("G2B_ACK_WRITE_FAILED");break;
             }
-            trace("G2B_ACK_INVALID_SENT");
+            g2b_trace("G2B_ACK_INVALID_SENT");
             continue;
         };
         for _ in 0..40 {
@@ -143,11 +143,11 @@ fn handle_connection(file:File,app:AppHandle,shared:Arc<Shared>){
             thread::sleep(std::time::Duration::from_millis(50));
         }
         if !shared.ui_ready.load(std::sync::atomic::Ordering::SeqCst){
-            trace("G2B_WEBVIEW_NOT_READY");
+            g2b_trace("G2B_WEBVIEW_NOT_READY");
             if write_ack(input.get_mut(),json!({"type":"delivery.ack","eventId":id,"ok":false,"error":"ui-not-ready"})).is_err(){
-                trace("G2B_ACK_WRITE_FAILED");break;
+                g2b_trace("G2B_ACK_WRITE_FAILED");break;
             }
-            trace("G2B_ACK_UI_NOT_READY_SENT");
+            g2b_trace("G2B_ACK_UI_NOT_READY_SENT");
             continue;
         }
         // Synthetic G2B clicks stop speech/dismiss; they NEVER route into real apps.
@@ -168,7 +168,7 @@ fn handle_connection(file:File,app:AppHandle,shared:Arc<Shared>){
                 }
             }
         };
-        trace(match position {
+        g2b_trace(match position {
             "active"=>"G2B_EVENT_ACTIVE",
             "queued"=>"G2B_EVENT_QUEUED",
             "duplicate"=>"G2B_EVENT_DUPLICATE",
@@ -177,8 +177,8 @@ fn handle_connection(file:File,app:AppHandle,shared:Arc<Shared>){
         let ack=json!({"type":"delivery.ack","eventId":event.event_id,"ok":ok,
                        "state":position,"error":error});
         match write_ack(input.get_mut(),ack){
-            Ok(())=>trace("G2B_ACK_SENT"),
-            Err(_)=>{trace("G2B_ACK_WRITE_FAILED");break;},
+            Ok(())=>g2b_trace("G2B_ACK_SENT"),
+            Err(_)=>{g2b_trace("G2B_ACK_WRITE_FAILED");break;},
         }
     }
 }
