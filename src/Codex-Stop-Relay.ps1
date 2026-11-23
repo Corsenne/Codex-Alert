@@ -34,7 +34,7 @@ try{
     $delivery=ConvertTo-Delivery $event
     if($null -eq $delivery){exit 0}
     $json=ConvertTo-Json -InputObject $delivery -Depth 8 -Compress
-    if($DryRun){[Console]::Out.WriteLine($json);exit 0}
+    if($DryRun){Write-Output $json;exit 0}
     $sessionId=[Diagnostics.Process]::GetCurrentProcess().SessionId
     $pipeName='corsenne_finish_alert_v2_'+$sessionId
     $pipe=New-Object IO.Pipes.NamedPipeClientStream('.', $pipeName,[IO.Pipes.PipeDirection]::InOut)
