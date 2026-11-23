@@ -44,7 +44,9 @@ After testing, double-click `G3C-Cleanup.cmd` and type **CLEANUP**. It removes O
 - Only strict ChatGPT conversation URLs are considered; no prompt or response content is collected or transmitted.
 - The test bridge is **not** the final production transport. The main production migration, legacy v2 compatibility, Codex Stop Hook cutover, speaker serialization, residual bridge process soak and rollback-controlled installer remain separate acceptance gates.
 
-## Current evidence / HOLD
-- G3C Chrome route model and native bridge Rust unit/build tests execute in GitHub Actions. The most recent CI URL is included in the PR.
-- Full G3C Tauri/Chrome/Windows callback path is NOT accepted until this Windows test passes and the user confirms tab focus and immediate audio stop.
-- Do not merge the draft PR into main or install candidate code over the stable v1.1.5 app.
+## Current evidence / isolated acceptance
+- G3C Chrome route model, Windows native bridge Rust tests/build, and isolated Tauri Windows build have passed in GitHub Actions.
+- **G3C isolated manual browser-to-banner click scenario: user-reported PASS (2026-11-23)**. The user responded 「OK、成功！」 after the instructed end-to-end test.
+- No final-run console transcript or measured audio interruption latency was supplied; minimized-window repeat was not independently confirmed.
+- See `docs/G3C_WINDOWS_USER_ACCEPTANCE_2026-11-23.md` for the acceptance boundary.
+- Production integration, bridge process soak, real ChatGPT detection, rollback and installer remain HOLD. Do not merge the draft PR or install candidate code over stable v1.1.5.
