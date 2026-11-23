@@ -1,0 +1,45 @@
+name: G4C1C Optional Bridge Cleanup Gate
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C1C-Bridge-Cleanup.ps1'
+      - 'G4C1C-*.cmd'
+      - 'candidate-g4/tests/g4c1c-cleanup-contract.test.mjs'
+      - '.github/workflows/g4c1c-bridge-cleanup.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C1C-Bridge-Cleanup.ps1'
+      - 'G4C1C-*.cmd'
+      - 'candidate-g4/tests/g4c1c-cleanup-contract.test.mjs'
+      - '.github/workflows/g4c1c-bridge-cleanup.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4/tests/g4c1c-cleanup-contract.test.mjs
+  windows-preview:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse cleanup PowerShell 5.1 (do not run Cleanup mode on CI)
+        shell: powershell
+        run: |
+          $tokens=$null; $errs=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C1C-Bridge-Cleanup.ps1',[ref]$tokens,[ref]$errs)
+          if (@($errs).Count -gt 0) { throw 'G4C1C_AST_HOLD' }
+          Write-Host 'G4C1C_AST_PASS'
+      - name: Preview is read-only on synthetic CI host
+        shell: powershell
+        run: |
+          $result=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4C1C-Bridge-Cleanup.ps1 -Mode Preview)
+          if ($LASTEXITCODE -ne 0) { $result | Select-Object -Last 5 | ForEach-Object { Write-Host $_ }; throw 'G4C1C_PREVIEW_FAILED' }
+          if ($result -notcontains 'G4C1C_PREVIEW_PASS_NO_MUTATION') { throw 'G4C1C_PREVIEW_MISSING' }
+          Write-Host 'G4C1C_WINDOWS_PREVIEW_PASS'
