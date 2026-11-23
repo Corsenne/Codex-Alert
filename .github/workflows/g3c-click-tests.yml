@@ -34,7 +34,7 @@ jobs:
       - name: Parse G3C setup, start, clean and build scripts
         shell: powershell
         run: |
-          $paths = @("tools/G3C-Build.ps1", "tools/G3C-Register.ps1", "tools/G3C-Start.ps1", "tools/G3C-Cleanup.ps1", "tools/G3C-CI-Desktop.ps1")
+          $paths = @("tools/G3C-Build.ps1", "tools/G3C-Register.ps1", "tools/G3C-Start.ps1", "tools/G3C-Cleanup.ps1", "tools/G3C-CI-Desktop.ps1", "tools/G3C-Audit.ps1")
           foreach ($file in $paths) {
             $tokens = $null
             $err = $null
