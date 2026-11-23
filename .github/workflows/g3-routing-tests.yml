@@ -1,0 +1,27 @@
+name: G3 Routing Source Tests
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - "candidate-g3/**"
+      - ".github/workflows/g3-routing-tests.yml"
+  pull_request:
+    paths:
+      - "candidate-g3/**"
+      - ".github/workflows/g3-routing-tests.yml"
+permissions:
+  contents: read
+jobs:
+  routing:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Test G3 source
+        run: |
+          node --test candidate-g3/routing.test.mjs
+          node candidate-g3/chrome-extension/tests/exact-route.cjs
