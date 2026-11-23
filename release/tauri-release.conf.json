@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Finish Alert Unified",
+  "version": "1.2.0",
+  "identifier": "com.corsenne.finishalertdesktop.unified",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://127.0.0.1:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Finish Alert Unified",
+        "width": 420,
+        "height": 124,
+        "minWidth": 320,
+        "minHeight": 96,
+        "decorations": false,
+        "transparent": true,
+        "alwaysOnTop": true,
+        "skipTaskbar": true,
+        "visible": false,
+        "focus": false,
+        "focusable": false,
+        "resizable": false,
+        "fullscreen": false,
+        "shadow": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "nsis"
+    ],
+    "resources": {
+      "resources/release/": "release/"
+    },
+    "icon": [
+      "icons/icon.ico",
+      "icons/128x128.png"
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "installerHooks": "./windows/release-hooks.nsh",
+        "languages": [
+          "Japanese",
+          "English"
+        ],
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
