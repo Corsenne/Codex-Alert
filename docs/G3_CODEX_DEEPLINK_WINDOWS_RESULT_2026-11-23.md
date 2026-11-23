@@ -23,11 +23,9 @@ The actual thread identifier is intentionally omitted from this public record.
 - Local Codex session metadata's thread ID matches the link.
 - The Windows `codex://` protocol handler is registered.
 - A scheme-launch dispatch was attempted without reported error.
-- **The actual Codex Desktop foreground thread has not yet been visually confirmed by the user.**
+- **PASS — the user confirmed (answer A) that the copied target conversation A opened correctly, including when Codex Desktop was previously closed.**
 - The standalone helper is not proof that the future Finish Alert banner's click routing or sound cancellation works.
 
 ## Next acceptance
 
-Obtain a simple user confirmation: did the exact originally chosen Codex conversation open (not merely the Codex app or a different thread)?
-
-If yes, mark the deep-link handler gate PASS and proceed to isolated G3 native banner click-to-verified-thread integration, along with stop-audio-before-navigation. Maintain one visible FIFO banner and do not replace installed Finish Alert v1.1.5 or legacy Codex Stop Hook before independent tests and rollback plan.
+**Exact Codex thread deep-link Windows gate PASS.** Next: build and run the isolated G3 native banner click-to-verified-thread integration and stop-audio-before-navigation test. The standalone helper proves the OS protocol route and exact thread are functional, but not that a banner click or audio cancellation already works. Maintain one visible FIFO banner and do not replace installed Finish Alert v1.1.5 or legacy Codex Stop Hook before independent tests and rollback plan.
