@@ -108,14 +108,29 @@ fn read_chrome(input:&mut impl Read)->io::Result<Option<Value>> {
 fn valid_extension_id(s:&str)->bool {
     s.len()==32 && s.bytes().all(|b|(b'a'..=b'p').contains(&b))
 }
+// Mirror the strict ChatGPT path contract of the G3C extension (no query/fragment).
+fn valid_chat_url(url:&str)->bool{
+    if url.len()>250 || url.contains(&['?','#','\\','\n','\r'][..]){return false;}
+    let path=url.strip_prefix("https://chatgpt.com/")
+      .or_else(||url.strip_prefix("https://chat.openai.com/"));
+    let Some(path)=path else{return false;};
+    let parts:Vec<&str>=path.trim_end_matches('/').split('/').collect();
+    let id=|s:&str|s.len()>=8&&s.len()<=100&&s.bytes()
+        .all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-');
+    match parts.as_slice(){
+       ["c",chat]=>id(chat),
+       ["g",project,"c",chat]=>project.len()>=3&&project.len()<=100&&
+           project.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'_'||b==b'-')&&id(chat),
+       _=>false
+    }
+}
 fn valid_event(msg:&Value)->bool {
     if msg.get("type").and_then(Value::as_str)!=Some("deliver")||msg.get("version").and_then(Value::as_u64)!=Some(2){return false;}
     let Some(e)=msg.get("event")else{return false;};
     let Some(id)=e.get("eventId").and_then(Value::as_str)else{return false;};
     let Some(url)=e.get("conversationUrl").and_then(Value::as_str)else{return false;};
     id.len()>=12&&id.len()<=50&&id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-')&&
-        (url.starts_with("https://chatgpt.com/c/")||url.starts_with("https://chat.openai.com/c/"))&&
-        !url.contains(&['?','#','\\','\n','\r'][..])&&url.len()<250 &&
+        valid_chat_url(url)&&
         msg.get("soundId").and_then(Value::as_str)==Some("female") &&
         msg.get("audioOwner").and_then(Value::as_str)==Some("desktop")
 }
@@ -196,5 +211,8 @@ mod tests{
     assert!(valid_event(&v));
     let mut w=v.clone();w["event"]["conversationUrl"]=json!("https://evil.test/c/12345678");
     assert!(!valid_event(&w));
+    assert!(valid_chat_url("https://chatgpt.com/g/g-project/c/12345678-abcd"));
+    assert!(!valid_chat_url("https://chatgpt.com/c/12345678?x=1"));
+    assert!(!valid_chat_url("https://chatgpt.com/c/12345678/../../evil"));
  }
 }
