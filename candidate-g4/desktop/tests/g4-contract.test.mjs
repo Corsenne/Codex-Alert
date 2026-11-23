@@ -35,7 +35,10 @@ test('G4 callback cannot access general native pipes',()=>{
  assert.match(s,/corsenne_finish_alert_g4_cb_/);
  assert.match(s,/notification.open/);
  assert.match(s,/notification.closed/);
- assert.doesNotMatch(s,/corsenne_finish_alert_v2_/);
+ // The negative Rust unit test deliberately mentions the old pipe by name.
+ // Only the production prefix declaration and callback implementation must be isolated.
+ const implementation=s.split('#[cfg(all(test,windows))]')[0];
+ assert.doesNotMatch(implementation,/corsenne_finish_alert_v2_/);
 });
 test('G4 queue remains one-visible and no sound while waiting',()=>{
  const code=read('src-tauri/src/delivery.rs');
