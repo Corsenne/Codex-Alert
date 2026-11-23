@@ -13,6 +13,8 @@ $locFile=Join-Path $stateRoot 'install-location.txt'
 $stateFile=Join-Path $stateRoot 'release-state.json'
 $hostName='com.corsenne.finish_alert'
 $key='Registry::HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\'+$hostName
+$runKey='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$runName='FinishAlertUnified'
 function Fail([string]$code){throw $code}
 function Directory([string]$p){if(-not(Test-Path -LiteralPath $p -PathType Container)){New-Item -ItemType Directory -Path $p -Force|Out-Null}}
 function Utf8([string]$path,[string]$value){[IO.File]::WriteAllText($path,$value,[Text.UTF8Encoding]::new($false))}
@@ -156,6 +158,11 @@ try{
  if($Mode -eq 'Activate'){
   if(Test-Path -LiteralPath $stateFile){Fail 'G5_ALREADY_ACTIVATED'}
   $h=Hook;$field=LegacyField $h;$n=NativeHost
+  $desktopExe=Join-Path $installRoot 'finish-alert-desktop.exe'
+  if(-not(Test-Path -LiteralPath $desktopExe -PathType Leaf)){Fail 'G5_INSTALLED_DESKTOP_EXE_MISSING'}
+  if(@(Get-Process -Name 'finish-alert-desktop' -ErrorAction SilentlyContinue).Count -gt 0){Fail 'G5_CLOSE_LEGACY_DESKTOP_BEFORE_ACTIVATE'}
+  $oldRun=Get-ItemPropertyValue -Path $runKey -Name $runName -ErrorAction SilentlyContinue
+  if($oldRun){Fail 'G5_AUTORUN_NAME_ALREADY_IN_USE'}
   if(-not $ExtensionDir){$ExtensionDir=[string](Read-Host 'Original unpacked Finish Alert Chrome extension folder')}
   $ext=Extension $ExtensionDir
   Write-Host 'G5_ONE_STOP_HOOK_ONE_SAME_ID_EXTENSION'
@@ -166,20 +173,23 @@ try{
   Copy-Item -LiteralPath $h.file -Destination (Join-Path $backup 'hooks.json') -Force
   Copy-Item -LiteralPath $n.file -Destination (Join-Path $backup 'native-manifest.json') -Force
   $present=SaveExt $ext (Join-Path $backup 'extension')
-  JsonSave (Join-Path $backup 'rollback-info.json') ([ordered]@{extensionId=$n.id;extensionDir=$ext;files=$present;hookPath=$h.file;hostManifest=$n.file})
+  JsonSave (Join-Path $backup 'rollback-info.json') ([ordered]@{extensionId=$n.id;extensionDir=$ext;files=$present;hookPath=$h.file;hostManifest=$n.file;autoRunOriginal=$oldRun})
   try{
    $manifest=Bridge $resources $version $n.id
    $h.handler.$field=Command $installRoot
    JsonSave $h.file $h.document
    DeployExt $resources $ext
    Set-Item -LiteralPath $key -Value $manifest
+   Set-ItemProperty -Path $runKey -Name $runName -Value ('"'+$desktopExe+'"')
    JsonSave $stateFile ([ordered]@{schema=1;version=$version;extensionId=$n.id;extensionDir=$ext;originalBackup=$backup;activeManifest=$manifest})
   }catch{
    try{Copy-Item -LiteralPath (Join-Path $backup 'hooks.json') -Destination $h.file -Force}catch{}
    try{RestoreExt $ext (Join-Path $backup 'extension') $present}catch{}
    try{Set-Item -LiteralPath $key -Value $n.file}catch{}
+   try{Remove-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue}catch{}
    throw
   }
+  try{Start-Process -FilePath $desktopExe -ErrorAction Stop}catch{Write-Host 'G5_DESKTOP_MANUAL_START_REQUIRED'}
   Write-Host 'G5_ACTIVATED_PASS'
   Write-Host 'G5_ENABLE_ORIGINAL_EXTENSION_AND_RELOAD_CHROME'
   exit 0
@@ -217,6 +227,8 @@ try{
   RestoreExt ([string]$info.extensionDir) (Join-Path $backup 'extension') $info.files
   Copy-Item -LiteralPath (Join-Path $backup 'native-manifest.json') -Destination ([string]$info.hostManifest) -Force
   Set-Item -LiteralPath $key -Value ([string]$info.hostManifest)
+  $registeredRun=Get-ItemPropertyValue -Path $runKey -Name $runName -ErrorAction SilentlyContinue
+  if($registeredRun -eq ('"'+(Join-Path $installRoot 'finish-alert-desktop.exe')+'"')){Remove-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue}
   Move-Item -LiteralPath $stateFile -Destination (Join-Path $stateRoot 'rolled-back-state.json') -Force
   Write-Host 'G5_ORIGINAL_STABLE_ROLLBACK_PASS'
   Write-Host 'G5_REENABLE_STABLE_EXTENSION_AND_CLOSE_UNIFIED_DESKTOP';exit 0
