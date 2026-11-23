@@ -13,6 +13,6 @@ $fn=@($ast.FindAll({param($x)
 if($fn.Count -ne 1){throw 'G5_AUTORUN_HELPER_MISSING'}
 if($code.Contains('Get-ItemPropertyValue -Path $runKey -Name $runName')){throw 'G5_UNSAFE_AUTORUN_QUERY_REMAINS'}
 $runName='G5_Autorun_Probe_Nonexistent_97913012'
-& ([scriptblock]::Create($fn[0].Extent.Text))
+. ([scriptblock]::Create($fn[0].Extent.Text))
 if($null -ne (Current-AutorunValue)){throw 'G5_AUTORUN_NONEXISTENT_VALUE_NOT_NULL'}
 Write-Host 'G5_MISSING_AUTORUN_SAFE_PASS'
