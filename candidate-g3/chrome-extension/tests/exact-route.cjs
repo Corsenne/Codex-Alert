@@ -9,7 +9,7 @@ function harness(){
  const local={pendingChats:[]}, session={}, handlers={},tabs=new Map([
   [5,{id:5,windowId:1,url:'https://chatgpt.com/c/12345678',title:'Test',active:false}],
   [6,{id:6,windowId:2,url:'https://chatgpt.com/c/87654321',title:'Other',active:false}]
- ]),actions=[];
+ ]),actions=[], windows=new Map([[1,'normal'],[2,'normal'],[3,'normal']]);
  const get=(store,key)=>typeof key==='string'?{[key]:store[key]}:
   (Array.isArray(key)?Object.fromEntries(key.map(k=>[k,store[k]])):Object.assign({},key,store));
  const chrome={
@@ -25,15 +25,17 @@ function harness(){
   tabs:{onActivated:{addListener:f=>handlers.tabActivated=f},onUpdated:{addListener:f=>handlers.tabUpdated=f},get:async id=>{if(!tabs.has(id))throw Error('gone');return tabs.get(id);},
     query:async()=>[...tabs.values()],update:async(id,o)=>{actions.push(['tab-focus',id]);Object.assign(tabs.get(id),o);},
     create:async o=>{actions.push(['create',o.url]);}},
-  windows:{WINDOW_ID_NONE:-1,onFocusChanged:{addListener:f=>handlers.focusChanged=f},get:async()=>({focused:false,state:'normal'}),
-    update:async(id)=>{actions.push(['window-focus',id]);}}
+  windows:{WINDOW_ID_NONE:-1,onFocusChanged:{addListener:f=>handlers.focusChanged=f},
+    get:async id=>({focused:false,state:windows.get(id)||'normal'}),
+    update:async(id,o)=>{if(o.state){windows.set(id,o.state);actions.push(['window-restore',id]);}
+      if(o.focused)actions.push(['window-focus',id]);}}
  };
  let n=0;
  const ctx={chrome,crypto:{randomUUID:()=> '00000000-0000-4000-8000-'+String(++n).padStart(12,'0')},
     URL,Map,Set,Date,Object,Promise,Number,String,console,setTimeout:(f,ms)=>{const h=setTimeout(f,ms);h.unref?.();return h;},clearTimeout};
  vm.runInNewContext(source,ctx);
  const send=(msg,sender)=>new Promise(resolve=>handlers.onMessage(msg,sender,resolve));
- return {local,session,handlers,tabs,actions,send};
+ return {local,session,handlers,tabs,windows,actions,send};
 }
 (async()=>{
   let h=harness();
@@ -44,19 +46,38 @@ function harness(){
   assert.ok(eventId,'route saved to session storage');
   h.tabs.get(5).url='https://chatgpt.com/c/87654321';
   h.tabs.set(8,{id:8,windowId:3,url:'https://chatgpt.com/c/12345678',title:'Moved',active:false});
+  // Original tab reused another conversation; restore the matching alternate tab.
+  h.windows.set(3,'minimized');
   h.handlers.port.onMsg({type:'notification.open',eventId});
-  await waits(25);
-  assert.deepEqual(h.actions.slice(-2).map(a=>a[0]),['window-focus','tab-focus']);
-  assert.deepEqual(h.actions.at(-1),['tab-focus',8],'must focus exact alternate chat not the reused tab');
-  const oldActions=h.actions.length;
+  await waits(30);
+  assert.deepEqual(h.actions.slice(-3),[['window-restore',3],['window-focus',3],['tab-focus',8]]);
+  assert.ok(h.session.g3_completedNotificationOpens[eventId],'clicked event becomes consumed');
+  const clickedActionCount=h.actions.length;
+  h.handlers.port.onMsg({type:'notification.open',eventId});
+  await waits(30);
+  assert.equal(h.actions.length,clickedActionCount,'duplicate callback must not focus again');
+
+  // Exact unknown target must not switch to a wrong or generic homepage.
   const bad={eventId:'test-route-invalid-0000',at:Date.now(),tabId:5,conversationUrl:null};
   h.session.g3_activeNotificationRoutes[bad.eventId]=bad;
   h.handlers.port.onMsg({type:'notification.open',eventId:bad.eventId});
-  await waits(25);
-  assert.equal(h.actions.length,oldActions,'unknown conversation must not open a random chat');
-  h.tabs.delete(8);
-  h.handlers.port.onMsg({type:'notification.open',eventId});
-  await waits(25);
+  await waits(30);
+  assert.equal(h.actions.length,clickedActionCount,'unknown target must fail closed');
+
+  // Simulate a second, valid event whose original and alternate tabs were closed.
+  const sender2={tab:{id:5,windowId:1,url:'https://chatgpt.com/c/12345678',title:'Test',active:false},documentId:'doc5b'};
+  const answer2=await h.send({type:'COMPLETE',cycleId:'cycle2',chatTitle:'Test'},sender2);
+  assert.ok(answer2?.ok);
+  const eventId2=Object.keys(h.session.g3_activeNotificationRoutes).find(id=>id!==eventId && id!==bad.eventId);
+  assert.ok(eventId2);
+  h.tabs.delete(5);h.tabs.delete(8);
+  h.handlers.port.onMsg({type:'notification.open',eventId:eventId2});
+  await waits(30);
   assert.deepEqual(h.actions.at(-1),['create','https://chatgpt.com/c/12345678']);
+  const created=h.actions.length;
+  h.handlers.port.onMsg({type:'notification.open',eventId:eventId2});
+  await waits(30);
+  assert.equal(h.actions.length,created,'second callback for closed tab must not create another tab');
+  assert.equal(Object.keys(h.session.g3_completedNotificationOpens).length,2);
   console.log('G3_CHATGPT_EXACT_ROUTE_PASS');
 })().catch(e=>{console.error(e);process.exitCode=1;});
