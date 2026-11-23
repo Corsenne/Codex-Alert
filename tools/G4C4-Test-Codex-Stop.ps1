@@ -30,6 +30,15 @@ try{
         voice=($event.soundId -ceq 'leo')
     }
     foreach($c in $checks.Keys){Write-Host ('G4C4_CHECK_'+$c.ToUpperInvariant()+'='+$checks[$c])}
+    if(-not $checks.transcript_proof){
+        $from=[string]$event.event.transcriptPath
+        Write-Host ('G4C4_DIAG_PATH_PRESENT='+(-not [string]::IsNullOrEmpty($from)))
+        Write-Host ('G4C4_DIAG_PATH_LENGTH='+$from.Length)
+        Write-Host ('G4C4_DIAG_EXPECTED_LENGTH='+$file.Length)
+        Write-Host ('G4C4_DIAG_PATH_CASE_INSENSITIVE_MATCH='+[string]::Equals($from,$file,[StringComparison]::OrdinalIgnoreCase))
+        Write-Host ('G4C4_DIAG_PATH_FILENAME_MATCH='+[string]::Equals([IO.Path]::GetFileName($from),[IO.Path]::GetFileName($file),[StringComparison]::OrdinalIgnoreCase))
+        Write-Host ('G4C4_DIAG_PATH_PROPERTY_TYPE='+$(if($null -eq $event.event.transcriptPath){'NULL'}else{'SET'}))
+    }
     if(@($checks.Values|Where-Object{$_ -eq $false}).Count -gt 0){throw 'G4C4_VALID_EVENT_MISMATCH'}
     Write-Host 'G4C4_VERIFIED_CODEX_SESSION_DRYRUN_PASS'
     $msg.stop_hook_active=$true
