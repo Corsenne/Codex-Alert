@@ -26,7 +26,7 @@ where cargo >nul 2>&1
 if errorlevel 1 (
   echo HOLD: cargo not found. Rust Windows compile/tests still required before any installation.
   pause
-  exit /b 0
+  exit /b 2
 )
 echo.
 echo Testing Native Messaging bridge (uses local Cargo cache / may download crates)...
