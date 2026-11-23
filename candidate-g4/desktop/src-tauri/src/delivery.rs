@@ -132,7 +132,7 @@ mod tests{
  fn event(i:usize,s:&str)->Delivery {
     Delivery{event:AlertEvent{version:3,event_id:format!("codex-{i:032x}"),
       chat_title:"TALOS".into(),completed_at:"2026-11-23T00:00:00Z".into(),
-      source:Some(s.into()),open_target:None,conversation_url:None,
+      source:Some(s.into()),open_target:None,transcript_path:None,conversation_url:None,
       bridge_callback_pipe:None,tab_id:0,window_id:0},
       sound_id:"leo".into(),volume:80,native_audio:true,connection_id:None}
  }

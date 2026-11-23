@@ -138,8 +138,13 @@ fn play_codex_voice(volume:u8){
     #[link(name="winmm")]
     extern "system" {fn PlaySoundW(sound:*const u16,module:*mut std::ffi::c_void,flags:u32)->i32;}
     if volume==0{return;}
-    let Some(wav_path)=std::env::var_os("FINISH_ALERT_G2B_PRIVATE_WAV") else{return;};
-    let path=std::path::PathBuf::from(wav_path);
+    // Isolated tests use the explicit variable; packaged releases use a private
+    // local resource shipped by the operator's Windows-only installer.
+    let path=std::env::var_os("FINISH_ALERT_G2B_PRIVATE_WAV")
+        .map(std::path::PathBuf::from)
+        .or_else(||std::env::current_exe().ok().and_then(|exe|
+            exe.parent().map(|dir|dir.join("resources").join("release").join("private-leo.wav"))));
+    let Some(path)=path else{return;};
     let Ok(meta)=std::fs::metadata(&path) else {return;};
     if !meta.is_file()||meta.len()>2_000_000 {return;}
     let Ok(original)=std::fs::read(&path) else{return;};

@@ -165,7 +165,8 @@ fn valid_event(msg:&Value)->bool {
     let Some(url)=e.get("conversationUrl").and_then(Value::as_str)else{return false;};
     id.len()>=12&&id.len()<=50&&id.bytes().all(|b|b.is_ascii_alphanumeric()||b==b'-')&&
         valid_chat_url(url)&&
-        msg.get("soundId").and_then(Value::as_str)==Some("female") &&
+        matches!(msg.get("soundId").and_then(Value::as_str),Some("holo"|"soft"|"pulse"|"female")) &&
+        msg.get("soundVolume").and_then(Value::as_u64).map_or(false,|v|v<=100) &&
         msg.get("audioOwner").and_then(Value::as_str)==Some("desktop")
 }
 fn run()->io::Result<()> {
@@ -254,9 +255,13 @@ mod tests{
  }
  #[test] fn route_host_and_sound_are_strict(){
     let v=json!({"version":2,"type":"deliver","event":{"eventId":"abcde-1234567890","conversationUrl":"https://chatgpt.com/c/12345678"},"soundId":"female","audioOwner":"desktop"});
+    let mut v=v;
+    v["soundVolume"]=json!(85);
     assert!(valid_event(&v));
     let mut w=v.clone();w["event"]["conversationUrl"]=json!("https://evil.test/c/12345678");
     assert!(!valid_event(&w));
+    let mut w=v.clone();w["soundId"]=json!("holo");assert!(valid_event(&w));
+    let mut w=v.clone();w["soundVolume"]=json!(101);assert!(!valid_event(&w));
     assert!(valid_chat_url("https://chatgpt.com/g/g-project/c/12345678-abcd"));
     assert!(!valid_chat_url("https://chatgpt.com/c/12345678?x=1"));
     assert!(!valid_chat_url("https://chatgpt.com/c/12345678/../../evil"));
