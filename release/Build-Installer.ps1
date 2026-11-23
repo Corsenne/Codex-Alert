@@ -80,6 +80,8 @@ try{
   $path=Join-Path $lib $file
   if($file -eq 'src\ipc.rs'){
    Replace-Code $path 'corsenne_finish_alert_g4_test_' 'corsenne_finish_alert_v12_'
+   # The v2 test fixture must use the same callback namespace as release Rust.
+   Replace-Code $path 'corsenne_finish_alert_g4_cb_' 'corsenne_finish_alert_v12_cb_'
   }elseif($file -eq 'src\g4_callback.rs'){
    Replace-Code $path 'corsenne_finish_alert_g4_cb_' 'corsenne_finish_alert_v12_cb_'
   }elseif($file -eq 'src\lib.rs'){
