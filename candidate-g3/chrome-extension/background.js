@@ -10,6 +10,8 @@ const MAX_PENDING_CHATS = 48;
 const NATIVE_TIMEOUT_MS = 10000;
 const ROUTE_TTL_MS = 20*60*1000; // Covers up to 64 queued 8-second banners.
 const SESSION_ROUTE_KEY = 'g3_activeNotificationRoutes'; // ephemeral across SW restarts, not a history log.
+const SESSION_OPENED_KEY = 'g3_completedNotificationOpens'; // bounded idempotence tokens, no browsing history.
+const consumedOpens = new Map();
 const CYCLE_TTL_MS = 120000;
 let creatingOffscreen = null;
 let nativePort = null;
@@ -82,6 +84,37 @@ async function rememberRoute(event) {
     next[event.eventId]=item;
     await chrome.storage.session.set({[SESSION_ROUTE_KEY]:next});
   } catch(e){ console.warn('G3: ephemeral route storage unavailable'); }
+}
+async function wasOpened(eventId) {
+  const recent = consumedOpens.get(eventId);
+  if (recent && recent>Date.now()-ROUTE_TTL_MS) return true;
+  if (!chrome.storage?.session) return false;
+  try {
+    const x=await chrome.storage.session.get({[SESSION_OPENED_KEY]:{}});
+    const at=x[SESSION_OPENED_KEY]?.[eventId];
+    if (typeof at==='number' && at>Date.now()-ROUTE_TTL_MS) {
+      consumedOpens.set(eventId,at);
+      return true;
+    }
+  }catch(_){}
+  return false;
+}
+async function rememberOpened(eventId) {
+  const now=Date.now();
+  consumedOpens.set(eventId,now);
+  for(const [id,at] of consumedOpens)if(at<now-ROUTE_TTL_MS)consumedOpens.delete(id);
+  while(consumedOpens.size>80)consumedOpens.delete(consumedOpens.keys().next().value);
+  if (!chrome.storage?.session) return;
+  try {
+    const x=await chrome.storage.session.get({[SESSION_OPENED_KEY]:{}});
+    const next={};
+    for(const [id,at] of Object.entries(x[SESSION_OPENED_KEY]||{})) {
+      if(/^[a-zA-Z0-9-]{12,50}$/.test(id) && Number.isFinite(at) &&
+         at>now-ROUTE_TTL_MS && Object.keys(next).length<79) next[id]=at;
+    }
+    next[eventId]=now;
+    await chrome.storage.session.set({[SESSION_OPENED_KEY]:next});
+  }catch(_){} // Never block a successful tab restore because the cache is unavailable.
 }
 async function recallRoute(eventId) {
   const memory=recentRoutes.get(eventId);
@@ -327,7 +360,9 @@ async function handleComplete(message,sender) {
   return {ok:true,delivery:desktop.ok?'desktop':fallback?'chrome-fallback':'desktop-unconfirmed'};
 }
 async function openEvent(eventId) {
+  if (!/^[a-zA-Z0-9-]{12,50}$/.test(eventId)) return {ok:false,error:'invalid-event-id'};
   pruneRecent();
+  if (await wasOpened(eventId)) return {ok:true,alreadyOpened:true};
   const pending=await getPending();
   const route=(await recallRoute(eventId))||pending.find(x=>x.eventId===eventId);
   if(!route)return {ok:false,error:'event-expired'};
@@ -351,7 +386,9 @@ async function openEvent(eventId) {
   }
   let opened=false;
   if(chosen) {
-    try{
+    try {
+      const win=await chrome.windows.get(chosen.windowId);
+      if (win?.state==='minimized') await chrome.windows.update(chosen.windowId,{state:'normal'});
       await chrome.windows.update(chosen.windowId,{focused:true});
       await chrome.tabs.update(chosen.id,{active:true});
       opened=true;
@@ -361,6 +398,7 @@ async function openEvent(eventId) {
     try {await chrome.tabs.create({url:target});opened=true;}
     catch(_) {return {ok:false,error:'browser-open-failed'};}
   }
+  await rememberOpened(eventId);
   // Mark only the exact conversation as viewed.
   const rest=pending.filter(x=>x.key!==chatKey(target,route.tabId));
   if(rest.length!==pending.length)await savePending(rest);
