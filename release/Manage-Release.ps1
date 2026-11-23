@@ -15,6 +15,13 @@ $hostName='com.corsenne.finish_alert'
 $key='Registry::HKEY_CURRENT_USER\Software\Google\Chrome\NativeMessagingHosts\'+$hostName
 $runKey='HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $runName='FinishAlertUnified'
+# A missing Run value is normal before first activation. Get-ItemPropertyValue
+# throws on a missing name even with SilentlyContinue in some PS5 installations.
+function Current-AutorunValue(){
+ $reg=[Microsoft.Win32.Registry]::CurrentUser.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Run',$false)
+ if($null -eq $reg){return $null}
+ try{return $reg.GetValue($runName,$null)}finally{$reg.Dispose()}
+}
 function Fail([string]$code){throw $code}
 function Directory([string]$p){if(-not(Test-Path -LiteralPath $p -PathType Container)){New-Item -ItemType Directory -Path $p -Force|Out-Null}}
 function Utf8([string]$path,[string]$value){[IO.File]::WriteAllText($path,$value,[Text.UTF8Encoding]::new($false))}
@@ -185,7 +192,7 @@ try{
   if(-not(Test-Path -LiteralPath $desktopExe -PathType Leaf)){Fail 'G5_INSTALLED_DESKTOP_EXE_MISSING'}
   $legacyApps=@(Get-Process -Name 'finish-alert-desktop' -ErrorAction SilentlyContinue | Where-Object { -not $_.Path -or $_.Path -ine $desktopExe })
   if($legacyApps.Count -gt 0){Fail 'G5_CLOSE_LEGACY_DESKTOP_BEFORE_ACTIVATE'}
-  $oldRun=Get-ItemPropertyValue -Path $runKey -Name $runName -ErrorAction SilentlyContinue
+  $oldRun=Current-AutorunValue
   if($oldRun){Fail 'G5_AUTORUN_NAME_ALREADY_IN_USE'}
   if(-not $ExtensionDir){$ExtensionDir=[string](Read-Host 'Original unpacked Finish Alert Chrome extension folder')}
   $ext=Extension $ExtensionDir
@@ -252,7 +259,7 @@ try{
   RestoreExt ([string]$info.extensionDir) (Join-Path $backup 'extension') $info.files
   Copy-Item -LiteralPath (Join-Path $backup 'native-manifest.json') -Destination ([string]$info.hostManifest) -Force
   Set-Item -LiteralPath $key -Value ([string]$info.hostManifest)
-  $registeredRun=Get-ItemPropertyValue -Path $runKey -Name $runName -ErrorAction SilentlyContinue
+  $registeredRun=Current-AutorunValue
   if($registeredRun -eq ('"'+(Join-Path $installRoot 'finish-alert-desktop.exe')+'"')){Remove-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue}
   Move-Item -LiteralPath $stateFile -Destination (Join-Path $stateRoot 'rolled-back-state.json') -Force
   Write-Host 'G5_ORIGINAL_STABLE_ROLLBACK_PASS'
