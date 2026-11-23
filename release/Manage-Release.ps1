@@ -59,21 +59,32 @@ function NativeHost(){
  return [pscustomobject]@{file=$file;id=$Matches[1]}
 }
 function Extension([string]$dir){
- if(-not [IO.Path]::IsPathRooted($dir)){Fail 'G5_EXTENSION_PATH_NOT_ABSOLUTE'}
+ $dir=$dir.Trim().Trim('"')
+ if(-not $dir -or -not [IO.Path]::IsPathRooted($dir)){Fail 'G5_EXTENSION_PATH_NOT_ABSOLUTE'}
  $dir=[IO.Path]::GetFullPath($dir)
  $root=[IO.Path]::GetFullPath($env:USERPROFILE).TrimEnd('\')+'\'
  if(-not $dir.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){Fail 'G5_EXTENSION_OUTSIDE_USER_PROFILE'}
- $walk=$dir
- while($walk -and $walk.StartsWith($root.TrimEnd('\'),[StringComparison]::OrdinalIgnoreCase)){
-  $i=Get-Item -LiteralPath $walk
-  if(($i.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){Fail 'G5_EXTENSION_SYMLINK_HOLD'}
-  $p=Split-Path -Parent $walk
-  if($p -eq $walk){break};$walk=$p
+ # Validate leaf first. Do not assume the provided directory exists.
+ if(-not(Test-Path -LiteralPath $dir -PathType Container)){
+  Write-Host 'G5_EXTENSION_DIRECTORY_EXISTS=False'
+  Fail 'G5_ORIGINAL_EXTENSION_FOLDER_NOT_FOUND'
  }
+ # Walk the real parent chain via DirectoryInfo rather than Split-Path and
+ # Get-Item on newly constructed string paths. Never ignore reparse points.
+ $rootDir=[IO.DirectoryInfo]::new($root.TrimEnd('\'))
+ $walk=[IO.DirectoryInfo]::new($dir)
+ while($null -ne $walk){
+  if(-not $walk.Exists){Fail 'G5_EXTENSION_PARENT_DIRECTORY_UNAVAILABLE'}
+  if(($walk.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0){Fail 'G5_EXTENSION_SYMLINK_HOLD'}
+  if([string]::Equals($walk.FullName,$rootDir.FullName,[StringComparison]::OrdinalIgnoreCase)){break}
+  $walk=$walk.Parent
+ }
+ if($null -eq $walk){Fail 'G5_EXTENSION_PARENT_CHAIN_OUTSIDE_PROFILE'}
  $file=Join-Path $dir 'manifest.json'
  if(-not(Test-Path -LiteralPath $file -PathType Leaf)){Fail 'G5_EXTENSION_MANIFEST_MISSING'}
  $m=Get-Content -LiteralPath $file -Raw -Encoding UTF8|ConvertFrom-Json
  if($m.manifest_version -ne 3 -or $m.name -cne 'ChatGPT Finish Alert — Desktop Edition' -or [string]$m.version -cnotmatch '^1\.(1|2)\.\d+'){Fail 'G5_EXTENSION_NOT_APPROVED'}
+ Write-Host 'G5_EXTENSION_SOURCE_DIRECTORY_VERIFIED'
  return $dir
 }
 function Hook(){
