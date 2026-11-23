@@ -1,0 +1,13 @@
+# Do not commit third-party audio, local build outputs or user config.
+*.wav
+*.mp3
+*.m4a
+*.flac
+*.ogg
+*.bak
+*.log
+*.tmp
+.env
+secrets.*
+**/target/
+**/node_modules/
