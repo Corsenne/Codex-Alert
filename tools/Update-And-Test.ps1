@@ -15,8 +15,8 @@ $launched=$null
 function Require-External([string]$name){
     if(-not (Get-Command $name -ErrorAction SilentlyContinue)){throw ('G2B_MISSING_TOOL_'+$name)}
 }
-function Invoke-Git([string[]]$arguments){
-    & git -C $repo @arguments
+function Invoke-Git([string[]]$CommandArguments){
+    & git -C $repo @CommandArguments
     if($LASTEXITCODE -ne 0){throw 'G2B_GIT_COMMAND_FAILED'}
 }
 function Copy-Source([string]$source,[string]$dest){
@@ -97,8 +97,8 @@ try {
     $tracked=@(& git -C $repo status --porcelain --untracked-files=no)
     if($tracked.Count -gt 0){throw 'G2B_WORKTREE_DIRTY_NO_CHANGES_MADE'}
     Write-Host 'Updating development branch from GitHub (fast-forward only)...'
-    Invoke-Git @('fetch','--quiet','origin',$branch)
-    Invoke-Git @('merge','--ff-only','FETCH_HEAD')
+    Invoke-Git -CommandArguments @('fetch','--quiet','origin',$branch)
+    Invoke-Git -CommandArguments @('merge','--ff-only','FETCH_HEAD')
     Write-Host 'G2B_GITHUB_SYNC_PASS'
     if(@(Get-Process 'finish-alert-g2b-test' -ErrorAction SilentlyContinue).Count -gt 0){
         throw 'G2B_TEST_ALREADY_RUNNING_CLOSE_ONLY_TEST_APP'
