@@ -76,7 +76,11 @@ try{
     Write-Host 'G4_PRIVATE_ASSETS_READY'
 
     & node --test (Join-Path $repo 'candidate-g4\chrome-extension\tests\source-contract.test.mjs')
-    if($LASTEXITCODE -ne 0){throw 'G4_CHROME_TEST_FAILED'}
+    if($LASTEXITCODE -ne 0){throw 'G4_CHROME_SOURCE_CONTRACT_FAILED'}
+    & node --test (Join-Path $repo 'candidate-g4\chrome-extension\tests\g4-safety.test.mjs')
+    if($LASTEXITCODE -ne 0){throw 'G4_CHROME_NO_MONITORING_CONTRACT_FAILED'}
+    & node (Join-Path $repo 'candidate-g4\chrome-extension\tests\callback-flow.cjs')
+    if($LASTEXITCODE -ne 0){throw 'G4_CHROME_CALLBACK_MODEL_FAILED'}
     Push-Location $desktop
     try{
         if(-not(Test-Path -LiteralPath 'node_modules' -PathType Container)){
@@ -106,9 +110,8 @@ try{
     Copy-Item -LiteralPath $bridgeExe -Destination (Join-Path $bin 'finish-alert-g4-bridge.exe') -Force
     Write-Host 'G4_ISOLATED_NATIVE_BRIDGE_BUILD_PASS'
     Write-Host 'G4_TEST_BUILD_COMPLETE'
-    Write-Host 'Load the NON-MONITORING test extension from the directory below (do not remove your stable extension):'
-    Write-Host (Join-Path $repo 'candidate-g4\chrome-extension')
-    Write-Host 'Then run G4-Register.cmd once with that test extension ID.'
+    Write-Host 'For G4A: run G4-Synthetic-Test.cmd (NO Chrome test extension or registry setup).'
+    Write-Host 'G4B live Chrome integration is a later gate; do not load the test extension yet.'
 }catch{
     Write-Host ('G4_TEST_BUILD_HOLD: '+$_.Exception.Message)
     exit 2
