@@ -5,10 +5,16 @@ on:
       - feature/codex-finish-alert-g0-g2
     paths:
       - "candidate-g3/**"
+      - "tools/G3-Check-Codex-Link.ps1"
+      - "tools/Verify-G3-Helper.ps1"
+      - "G3-Check-Codex-Link.cmd"
       - ".github/workflows/g3-routing-tests.yml"
   pull_request:
     paths:
       - "candidate-g3/**"
+      - "tools/G3-Check-Codex-Link.ps1"
+      - "tools/Verify-G3-Helper.ps1"
+      - "G3-Check-Codex-Link.cmd"
       - ".github/workflows/g3-routing-tests.yml"
 permissions:
   contents: read
@@ -30,6 +36,11 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Parse interactive G3 Codex link helper with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass -File tools\Verify-G3-Helper.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
       - name: Test G3 PowerShell Stop link mapping
         shell: powershell
         run: |
