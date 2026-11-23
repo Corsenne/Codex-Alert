@@ -39,3 +39,4 @@ jobs:
             throw 'G4C2R_EXPECTED_NO_TRACE_HOLD_NOT_OBSERVED'
           }
           Write-Host 'G4C2R_NO_TRACE_FAIL_CLOSED_PASS'
+          $global:LASTEXITCODE=0 # Expected child exit 2 has been asserted above.
