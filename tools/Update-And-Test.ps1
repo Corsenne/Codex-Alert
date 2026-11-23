@@ -102,6 +102,13 @@ try {
     Write-Host 'G2B_GITHUB_SYNC_PASS'
     $revision=(& git -C $repo rev-parse --short=12 HEAD)
     Write-Host ('G2B_TEST_SOURCE_COMMIT='+$revision)
+
+    # G3 exact-routing tests are source-only and cannot change installed alerts.
+    & node --test (Join-Path $repo 'candidate-g3\routing.test.mjs')
+    if($LASTEXITCODE -ne 0){throw 'G3_CODEX_AND_CHATGPT_ROUTING_TEST_FAILED'}
+    & node (Join-Path $repo 'candidate-g3\chrome-extension\tests\exact-route.cjs')
+    if($LASTEXITCODE -ne 0){throw 'G3_CHROME_EXACT_ROUTE_TEST_FAILED'}
+    Write-Host 'G3_ROUTING_SOURCE_TESTS_PASS'
     if(@(Get-Process 'finish-alert-g2b-test' -ErrorAction SilentlyContinue).Count -gt 0){
         throw 'G2B_TEST_ALREADY_RUNNING_CLOSE_ONLY_TEST_APP'
     }
