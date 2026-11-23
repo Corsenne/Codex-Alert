@@ -47,7 +47,7 @@ function Make-Message([object]$hook,[string]$codexRoot){
         chatTitle=$name;completedAt=[DateTime]::UtcNow.ToString('o')
         openTarget=$(if($record){$record.uri}else{$null})
     }
-    if($record){$event.transcriptPath=$record.file}
+    if($record){$event['transcriptPath']=$record.file}
     return [ordered]@{version=3;type='deliver';event=$event;soundId='leo';soundVolume=85}
 }
 $pipe=$null;$writer=$null;$reader=$null
