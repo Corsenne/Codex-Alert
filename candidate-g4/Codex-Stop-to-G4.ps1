@@ -4,13 +4,13 @@
 [CmdletBinding()]
 param([switch]$DryRun,[string]$SyntheticInput='',[string]$CodexHome='')
 $ErrorActionPreference='Stop'
-function Resolve-Session([object]$hook,[string]$home){
+function Resolve-Session([object]$hook,[string]$codexRoot){
     $id=([string]$hook.session_id).ToLowerInvariant()
     if($id -cnotmatch '^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$'){return $null}
     $provided=[string]$hook.transcript_path
     if([string]::IsNullOrEmpty($provided) -or -not [IO.Path]::IsPathRooted($provided)){return $null}
     try{
-        $root=[IO.Path]::GetFullPath((Join-Path $home 'sessions')).TrimEnd('\','/')+'\'
+        $root=[IO.Path]::GetFullPath((Join-Path $codexRoot 'sessions')).TrimEnd('\','/')+'\'
         $file=[IO.Path]::GetFullPath($provided)
         if(-not $file.StartsWith($root,[StringComparison]::OrdinalIgnoreCase)){return $null}
         $name=[IO.Path]::GetFileName($file)
@@ -26,7 +26,7 @@ function Resolve-Session([object]$hook,[string]$home){
         return [pscustomobject]@{uri=('codex://threads/'+$id);file=$file}
     }catch{return $null}
 }
-function Make-Message([object]$hook,[string]$home){
+function Make-Message([object]$hook,[string]$codexRoot){
     if($null -eq $hook -or [string]$hook.hook_event_name -cne 'Stop' -or $hook.stop_hook_active -eq $true){return $null}
     $session=[string]$hook.session_id
     $turn=[string]$hook.turn_id
@@ -41,7 +41,7 @@ function Make-Message([object]$hook,[string]$home){
         $bytes=[Text.Encoding]::UTF8.GetBytes($session+[char]0+$turn)
         $hex=[BitConverter]::ToString($sha.ComputeHash($bytes)).Replace('-','').ToLowerInvariant()
     }finally{$sha.Dispose()}
-    $record=Resolve-Session $hook $home
+    $record=Resolve-Session $hook $codexRoot
     $event=[ordered]@{
         version=3;source='codex';eventId=('codex-'+$hex.Substring(0,32))
         chatTitle=$name;completedAt=[DateTime]::UtcNow.ToString('o')
@@ -58,8 +58,8 @@ try{
     }else{[Console]::In.ReadToEnd()}
     if([string]::IsNullOrWhiteSpace($raw) -or $raw.Length -gt 65536){throw 'INVALID_INPUT'}
     $hook=$raw|ConvertFrom-Json -ErrorAction Stop
-    $home=if($CodexHome){$CodexHome}elseif($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $env:USERPROFILE '.codex'}
-    $msg=Make-Message $hook $home
+    $codexRoot=if($CodexHome){$CodexHome}elseif($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $env:USERPROFILE '.codex'}
+    $msg=Make-Message $hook $codexRoot
     if($null -eq $msg){exit 0}
     if($DryRun){Write-Output ($msg|ConvertTo-Json -Depth 8 -Compress);exit 0}
     $sessionId=[Diagnostics.Process]::GetCurrentProcess().SessionId
