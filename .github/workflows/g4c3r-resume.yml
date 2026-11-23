@@ -1,0 +1,49 @@
+name: G4C3R Chrome Background Diagnosis And Lifecycle Resume
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C3-Resume.ps1'
+      - 'G4C3-Background-Inspect.cmd'
+      - 'G4C3-Resume.cmd'
+      - 'candidate-g4c2/tests/g4c3r-resume.test.mjs'
+      - '.github/workflows/g4c3r-resume.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C3-Resume.ps1'
+      - 'G4C3-Background-Inspect.cmd'
+      - 'G4C3-Resume.cmd'
+      - 'candidate-g4c2/tests/g4c3r-resume.test.mjs'
+      - '.github/workflows/g4c3r-resume.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4c2/tests/g4c3r-resume.test.mjs
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 parser
+        shell: powershell
+        run: |
+          $tokens=$null; $err=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C3-Resume.ps1',[ref]$tokens,[ref]$err)
+          if(@($err).Count -ne 0){ throw 'G4C3R_POWERSHELL_AST_HOLD' }
+          Write-Host 'G4C3R_POWERSHELL_AST_PASS'
+      - name: Read-only Chrome process inventory on CI
+        shell: powershell
+        run: |
+          $out=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools/G4C3-Resume.ps1' -Mode Inspect)
+          if($LASTEXITCODE -ne 0 -or $out -notcontains 'G4C3R_BACKGROUND_INSPECT_PASS_NO_MUTATION'){
+            $out | Select-Object -Last 10 | ForEach-Object { Write-Host $_ }
+            throw 'G4C3R_CI_INSPECT_HOLD'
+          }
+          Write-Host 'G4C3R_CI_INSPECT_PASS'
