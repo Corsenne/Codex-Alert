@@ -1,0 +1,47 @@
+name: G4C1D Stable Notification Repetition Audit
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C1D-Real-Use.ps1'
+      - 'G4C1D-*.cmd'
+      - 'candidate-g4/tests/g4c1d-real-use.test.mjs'
+      - '.github/workflows/g4c1d-soak.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C1D-Real-Use.ps1'
+      - 'G4C1D-*.cmd'
+      - 'candidate-g4/tests/g4c1d-real-use.test.mjs'
+      - '.github/workflows/g4c1d-soak.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4/tests/g4c1d-real-use.test.mjs
+  windows-snapshot:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 syntax audit
+        shell: powershell
+        run: |
+          $tokens=$null; $errorsFound=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C1D-Real-Use.ps1',[ref]$tokens,[ref]$errorsFound)
+          if (@($errorsFound).Count -gt 0) { throw 'G4C1D_PS_PARSER_HOLD' }
+          Write-Host 'G4C1D_PS_PARSER_PASS'
+      - name: Read-only snapshot on clean Windows runner
+        shell: powershell
+        run: |
+          $data=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4C1D-Real-Use.ps1 -Mode Snapshot)
+          if ($LASTEXITCODE -ne 0 -or $data -notcontains 'G4C1D_SNAPSHOT_PASS_NO_MUTATION') {
+            $data | Select-Object -Last 6 | ForEach-Object { Write-Host $_ }
+            throw 'G4C1D_CI_SNAPSHOT_HOLD'
+          }
+          Write-Host 'G4C1D_CI_SNAPSHOT_PASS'
