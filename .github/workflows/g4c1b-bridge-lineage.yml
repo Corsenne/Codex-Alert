@@ -1,0 +1,48 @@
+name: G4C1B Bridge Lineage Read-only Audit
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C1B-Bridge-Lineage.ps1'
+      - 'G4C1B-Bridge-Lineage.cmd'
+      - 'candidate-g4/tests/g4c1b-bridge-lineage.test.mjs'
+      - '.github/workflows/g4c1b-bridge-lineage.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C1B-Bridge-Lineage.ps1'
+      - 'G4C1B-Bridge-Lineage.cmd'
+      - 'candidate-g4/tests/g4c1b-bridge-lineage.test.mjs'
+      - '.github/workflows/g4c1b-bridge-lineage.yml'
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4/tests/g4c1b-bridge-lineage.test.mjs
+  windows-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse PowerShell 5.1 source
+        shell: powershell
+        run: |
+          $tokens=$null; $errorsFound=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C1B-Bridge-Lineage.ps1',[ref]$tokens,[ref]$errorsFound)
+          if (@($errorsFound).Count -gt 0) { throw 'G4C1B_AST_PARSE_HOLD' }
+          Write-Host 'G4C1B_AST_PARSE_PASS'
+      - name: Run read-only process inventory on clean CI machine
+        shell: powershell
+        run: |
+          $result=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4C1B-Bridge-Lineage.ps1)
+          if ($LASTEXITCODE -ne 0) {
+            @($result) | Select-Object -Last 4 | ForEach-Object { Write-Host $_ }
+            throw 'G4C1B_RUNTIME_HOLD'
+          }
+          if ($result -notcontains 'G4C1B_READONLY_BRIDGE_DIAGNOSTIC_PASS') { throw 'G4C1B_OUTPUT_HOLD' }
+          Write-Host 'G4C1B_WINDOWS_RUNTIME_PASS'
