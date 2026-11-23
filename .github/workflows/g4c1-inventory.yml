@@ -42,7 +42,7 @@ jobs:
         shell: powershell
         run: |
           $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4C1-Inspect.ps1
-          if ($LASTEXITCODE -ne 0) { throw 'G4C1_WINDOWS_READONLY_SMOKE_FAILED' }
+          if ($LASTEXITCODE -ne 0) { @($out) | Select-Object -Last 5 | ForEach-Object { Write-Host $_ }; throw 'G4C1_WINDOWS_READONLY_SMOKE_FAILED' }
           $joined = @($out) -join [Environment]::NewLine
           if ($joined -notmatch 'G4C1_READONLY_INSPECTION_COMPLETE' -or $joined -notmatch 'G4C1_PRODUCT_RELEASE=HOLD') {
             throw 'G4C1_WINDOWS_AUDIT_OUTPUT_HOLD'

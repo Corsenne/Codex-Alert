@@ -157,10 +157,15 @@ function Inspect-Repo {
     return [ordered]@{inspection=$status;branch=$branch;head=$head;tracked_changes=$changed}
 }
 
+$phase='init'
 try {
+    $phase='codex'
     $codex=Inspect-Codex
+    $phase='chrome-hosts'
     $hosts=@(Inspect-ChromeNativeHosts)
+    $phase='processes'
     $processes=Inspect-AlertProcesses
+    $phase='report'
     $g4TestHosts=@($hosts|Where-Object {$_.host -eq 'com.corsenne.finish_alert_g4_test'})
     $g3cTestHosts=@($hosts|Where-Object {$_.host -eq 'com.corsenne.finish_alert_g3c_test'})
     $report=[ordered]@{
@@ -184,6 +189,8 @@ try {
     Write-Host 'G4C1_PRODUCT_RELEASE=HOLD'
 }catch{
     # Avoid emitting raw paths, hook text or errors containing local data.
+    Write-Host ('G4C1_HOLD_PHASE='+$phase)
+    Write-Host ('G4C1_HOLD_CLASS='+$_.Exception.GetType().Name)
     Write-Host 'G4C1_READONLY_INSPECTION_HOLD'
     exit 2
 }
