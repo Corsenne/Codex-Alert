@@ -6,7 +6,7 @@ $ErrorActionPreference='Stop'
 $file=Join-Path (Split-Path -Parent $PSScriptRoot) 'release\Manage-Release.ps1'
 $tokens=$null;$errs=$null
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($file,[ref]$tokens,[ref]$errs)
-if(@($errs).Count){throw 'G5_HOOK_SCRIPT_PARSE_HOLD'}
+if(@($errs).Count){foreach($err in $errs){Write-Host ('G5_PARSER_ERROR='+$err.ToString())};throw 'G5_HOOK_SCRIPT_PARSE_HOLD'}
 $names=@('Fail','WindowsField','LegacyField','Command','CheckNewHook')
 $found=@($ast.FindAll({
   param($node)
