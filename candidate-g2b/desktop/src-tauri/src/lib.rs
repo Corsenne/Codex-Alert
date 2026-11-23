@@ -174,6 +174,18 @@ fn primary_work_area()->Option<(i32,i32,i32,i32)>{
     if unsafe{GetMonitorInfoW(h,&mut info)}==0{return None;}
     Some((info.work.left,info.work.top,info.work.right,info.work.bottom))
 }
+// Fixed stage-only instrumentation. User content and unexpected strings are never logged.
+#[tauri::command]
+fn g2b_diagnostic(stage:String){
+    if matches!(stage.as_str(),
+        "G2B_HTML_INLINE_EXECUTED" | "G2B_DOM_READY" |
+        "G2B_JS_ERROR" | "G2B_JS_UNHANDLED_REJECTION" |
+        "G2B_REACT_MODULE_EXECUTED" | "G2B_REACT_EFFECT_STARTED" |
+        "G2B_EVENT_LISTENER_REGISTERED" | "G2B_EVENT_LISTENER_REJECTED" |
+        "G2B_UI_READY_INVOKE_RESOLVED" | "G2B_UI_READY_INVOKE_REJECTED") {
+        ipc::g2b_trace(&stage);
+    }
+}
 // G2B-only: visible transparent WebView boots, then hides after listener registration.
 #[tauri::command]
 fn ui_ready(window:tauri::WebviewWindow,shared:tauri::State<'_,Arc<Shared>>)->Result<bool,String>{
@@ -256,6 +268,21 @@ pub fn run(){
       .plugin(tauri_plugin_single_instance::init(|_,_,_|{}))
       .on_page_load(|webview,payload|{
           if webview.label()=="main" {
+              // Log only a fixed origin class; never log complete URLs or filesystem paths.
+              let target=payload.url().as_str();
+              let stage=if target.starts_with("http://127.0.0.1:1420") ||
+                           target.starts_with("http://localhost:1420") {
+                  "G2B_PAGE_ORIGIN_DEV_SERVER"
+              } else if target.starts_with("http://tauri.localhost") ||
+                        target.starts_with("https://tauri.localhost") ||
+                        target.starts_with("tauri://localhost") {
+                  "G2B_PAGE_ORIGIN_EMBEDDED_APP"
+              } else if target.starts_with("about:") {
+                  "G2B_PAGE_ORIGIN_ABOUT"
+              } else {
+                  "G2B_PAGE_ORIGIN_OTHER"
+              };
+              ipc::g2b_trace(stage);
               match payload.event(){
                   tauri::webview::PageLoadEvent::Started=>ipc::g2b_trace("G2B_PAGE_LOAD_STARTED"),
                   tauri::webview::PageLoadEvent::Finished=>ipc::g2b_trace("G2B_PAGE_LOAD_FINISHED"),
@@ -278,7 +305,7 @@ pub fn run(){
           if let Some(win)=app.get_webview_window("main") {let _=win.set_focusable(false);}
           Ok(())
       })
-      .invoke_handler(tauri::generate_handler![ui_ready,set_visible_count,notification_visible,complete_notification])
+      .invoke_handler(tauri::generate_handler![g2b_diagnostic,ui_ready,set_visible_count,notification_visible,complete_notification])
       .on_window_event(|win,event|{
         if let tauri::WindowEvent::CloseRequested{api,..}=event{
           api.prevent_close();let _=win.hide();
