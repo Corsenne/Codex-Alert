@@ -21,10 +21,8 @@ function useClock(iso:string){
 }
 function Toast({event,onFinish}:{event:ToastEvent;onFinish:(id:string,action:FinishAction)=>void}){
   const time=useClock(event.completedAt);
-  useEffect(()=>{
-    const timer=window.setTimeout(()=>onFinish(event.eventId,'timeout'),8000);
-    return ()=>window.clearTimeout(timer);
-  },[event.eventId,onFinish]);
+  // Native G4R watchdog owns both visible and unpainted expiration.
+  // A throttled WebView timer must never block FIFO progress.
   const codex=event.source==='codex';
   // Codex deep-link dispatch is gated by real thread-ID verification in G3.
   // Clicking still stops current voice and dismisses the banner at G2.
@@ -59,10 +57,17 @@ function App(){
   useEffect(()=>{
     diag('G2B_REACT_EFFECT_STARTED');
     let cancelled=false;let unlisten:(()=>void)|undefined;
+    let unlistenClear:(()=>void)|undefined;
     (async()=>{
       try {
         unlisten=await listen<ToastEvent>('finish-alert:active',ev=>{
           if(!cancelled && ev.payload?.eventId){finishing.current.delete(ev.payload.eventId);setActive(ev.payload);}
+        });
+        unlistenClear=await listen<string>('finish-alert:cleared',ev=>{
+          if(!cancelled && typeof ev.payload==='string'){
+            finishing.current.delete(ev.payload);
+            setActive(current=>current?.eventId===ev.payload?null:current);
+          }
         });
         diag('G2B_EVENT_LISTENER_REGISTERED');
         if(!cancelled) {
@@ -79,7 +84,7 @@ function App(){
         console.error('G2B event listener registration rejected',err);
       }
     })();
-    return()=>{cancelled=true;unlisten?.();};
+    return()=>{cancelled=true;unlisten?.();unlistenClear?.();};
   },[]);
   useEffect(()=>{
     let cancelled=false;

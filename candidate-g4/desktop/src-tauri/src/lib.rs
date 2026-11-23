@@ -1,6 +1,7 @@
 #![cfg(windows)]
 use serde::{Deserialize,Serialize};
 use std::sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}};
+use std::time::Duration;
 use tauri::{Manager,Emitter};
 use tauri::menu::{Menu,MenuItem};
 use tauri::tray::TrayIconBuilder;
@@ -234,21 +235,33 @@ fn notification_visible(shared:tauri::State<'_,Arc<Shared>>,event_id:String)->Re
     }
     Ok(())
 }
-#[tauri::command]
-fn complete_notification(app:tauri::AppHandle,shared:tauri::State<'_,Arc<Shared>>,
-                         event_id:String,action:String)->Result<(),String>{
-    if !matches!(action.as_str(),"click"|"dismiss"|"timeout") {return Err("invalid-action".into());}
-    let (finished,next)={
+/// Common completion pathway for clicks, dismissals and native watchdog.
+fn finish_event(app:&tauri::AppHandle,shared:&Arc<Shared>,event_id:&str,action:&str)
+    ->Result<bool,String>{
+    let outcome={
         let mut q=shared.queue.lock().map_err(|_|"queue-lock-failed")?;
-        if q.active.as_ref().map(|d|d.event.event_id.as_str())!=Some(event_id.as_str()){
-            return Err("stale-event".into());
+        if q.active.as_ref().map(|d|d.event.event_id.as_str())!=Some(event_id){
+            ipc::g2b_trace("G4R_STALE_ACTION_IGNORED");
+            return Ok(false);
         }
-        // Stop first, synchronously. No next event can play until its visibility ACK.
+        // One audio owner, and always stop before a callback or next event.
         stop_audio();
-        q.complete(&event_id).ok_or("event-not-active")?
+        q.complete(event_id).ok_or("event-not-active")?
     };
-    // G4: one stop call on click, dismiss and timeout; never start next voice
-    // before the current notification has left the active queue.
+    if let Some(age)=outcome.promoted_wait{
+        ipc::g2b_trace(if age<=Duration::from_secs(5) {
+            "G4R_PROMOTED_WAIT_LE_5S"
+        }else{"G4R_PROMOTED_WAIT_GT_5S"});
+    }
+    for stale in &outcome.dropped{
+        ipc::g2b_trace("G4R_STALE_QUEUED_DROPPED");
+        if stale.event.source.as_deref()!=Some("codex"){
+            if let Some(pipe)=stale.event.bridge_callback_pipe.as_deref(){
+                let _=g4_callback::send_callback(pipe,&stale.event.event_id,"notification.closed");
+            }
+        }
+    }
+    let finished=&outcome.finished;
     if action=="click" {
         ipc::g2b_trace("G4_AUDIO_STOP_BEFORE_ROUTE");
         match finished.event.source.as_deref(){
@@ -257,7 +270,7 @@ fn complete_notification(app:tauri::AppHandle,shared:tauri::State<'_,Arc<Shared>
                 let approved=std::env::var("FINISH_ALERT_G4_ALLOWED_CODEX_LINK").ok();
                 match target {
                     Some(uri) if g4_thread::valid_codex_thread_target(uri)
-                         && approved.as_deref()==Some(uri) => {
+                          && approved.as_deref()==Some(uri) =>{
                         let dispatched=g4_thread::open_codex_thread_target(uri);
                         ipc::g2b_trace(if dispatched{"G4_CODEX_ROUTE_DISPATCHED"}else{"G4_CODEX_ROUTE_FAILED"});
                     },
@@ -270,18 +283,42 @@ fn complete_notification(app:tauri::AppHandle,shared:tauri::State<'_,Arc<Shared>
                 ipc::g2b_trace(if ok{"G4_CHATGPT_CALLBACK_SENT"}else{"G4_CHATGPT_CALLBACK_FAILED"});
             }
         }
-    } else if finished.event.source.as_deref()!=Some("codex") {
-        // Release Chrome's event-owned callback state on X and timeout.
-        if let Some(pipe)=finished.event.bridge_callback_pipe.as_deref() {
+    }else if finished.event.source.as_deref()!=Some("codex"){
+        if let Some(pipe)=finished.event.bridge_callback_pipe.as_deref(){
             let ok=g4_callback::send_callback(pipe,&finished.event.event_id,"notification.closed");
             ipc::g2b_trace(if ok{"G4_CHATGPT_CLOSE_SENT"}else{"G4_CHATGPT_CLOSE_FAILED"});
         }
     }
-    // G4 isolated IPC uses separate callback channel, NOT the production duplex transport.
-    if let Some(next)=next {
+    // A watchdog completion must clear stale frontend state even if JS timers are frozen.
+    // Correlate only by eventId; never clear a newer toast.
+    let _=app.emit_to("main","finish-alert:cleared",&finished.event.event_id);
+    if let Some(next)=outcome.next{
+        ipc::g2b_trace("G4R_PROMOTED_NEXT");
         app.emit_to("main","finish-alert:active",&next.event).map_err(|e|e.to_string())?;
+    }else if let Some(win)=app.get_webview_window("main"){
+        // Safety net independent of WebView rendering/JS execution.
+        if win.hide().is_err(){ipc::g2b_trace("G4R_NATIVE_HIDE_FAILED");}
+        else{ipc::g2b_trace("G4R_NATIVE_HIDE_PASS");}
     }
+    Ok(true)
+}
+#[tauri::command]
+fn complete_notification(app:tauri::AppHandle,shared:tauri::State<'_,Arc<Shared>>,
+                         event_id:String,action:String)->Result<(),String>{
+    if !matches!(action.as_str(),"click"|"dismiss"|"timeout"){return Err("invalid-action".into());}
+    let _=finish_event(&app,shared.inner(),&event_id,&action)?;
     Ok(())
+}
+/// Single lightweight native worker. An invisible WebView cannot hold FIFO forever.
+fn launch_native_watchdog(app:tauri::AppHandle,shared:Arc<Shared>){
+    std::thread::spawn(move||loop{
+        std::thread::sleep(Duration::from_millis(125));
+        let due=shared.queue.lock().ok().and_then(|q|q.timeout_due(std::time::Instant::now()));
+        if let Some(due)=due{
+            ipc::g2b_trace(if due.painted{"G4R_NATIVE_VISIBLE_TIMEOUT"}else{"G4R_NATIVE_UNPAINTED_TIMEOUT"});
+            let _=finish_event(&app,&shared,&due.id,"timeout");
+        }
+    });
 }
 #[cfg(windows)]
 fn open_chat_url(url:&str)->bool {
@@ -325,7 +362,8 @@ pub fn run(){
       .setup(|app|{
           let shared=Arc::new(Shared::new());
           app.manage(shared.clone());
-          ipc::launch(app.handle().clone(),shared);
+          ipc::launch(app.handle().clone(),shared.clone());
+          launch_native_watchdog(app.handle().clone(),shared);
           let quit=MenuItem::with_id(app,"quit","終了",true,None::<&str>)?;
           let menu=Menu::with_items(app,&[&quit])?;
           TrayIconBuilder::new().icon(app.default_window_icon().ok_or("missing application icon")?.clone())
