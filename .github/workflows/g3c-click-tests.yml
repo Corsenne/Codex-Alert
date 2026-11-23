@@ -13,6 +13,9 @@ on:
       - 'tools/G3C-*.ps1'
       - 'G3C-*.cmd'
       - '.github/workflows/g3c-click-tests.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:
