@@ -79,10 +79,31 @@ function Hook(){
  if(-not $h){Fail 'G5_EMPTY_STOP_HANDLER'}
  return [pscustomobject]@{file=$file;document=$doc;handler=$h}
 }
+# A valid Codex Stop handler may define BOTH platform-neutral command and
+# Windows-specific commandWindows. Only the command actually used by Windows
+# is replaced, leaving the other field and PermissionRequest hooks untouched.
+function WindowsField($hook){
+ $props=@($hook.handler.PSObject.Properties.Name)
+ if($props -contains 'commandWindows' -and
+    -not [string]::IsNullOrWhiteSpace([string]$hook.handler.commandWindows)){
+    return 'commandWindows'
+ }
+ if($props -contains 'command' -and
+    -not [string]::IsNullOrWhiteSpace([string]$hook.handler.command)){
+    return 'command'
+ }
+ Fail 'G5_STOP_COMMAND_MISSING'
+}
 function LegacyField($hook){
- $all=@('command','commandWindows')|Where-Object{$hook.handler.PSObject.Properties.Name -contains $_ -and $hook.handler.$_}
- if(@($all).Count -ne 1 -or [string]$hook.handler.($all[0]) -notmatch '(?i)codex-alert\.ps1'){Fail 'G5_UNEXPECTED_STOP_HOOK'}
- return [string]$all[0]
+ $field=WindowsField $hook
+ if([string]$hook.handler.$field -notmatch '(?i)codex-alert\.ps1'){
+    Write-Host ('G5_WINDOWS_STOP_FIELD='+$field)
+    Write-Host 'G5_WINDOWS_STOP_LEGACY_MATCH=False'
+    Fail 'G5_UNEXPECTED_STOP_HOOK'
+ }
+ Write-Host ('G5_WINDOWS_STOP_FIELD='+$field)
+ Write-Host 'G5_WINDOWS_STOP_LEGACY_MATCH=True'
+ return $field
 }
 function Command([string]$root){
  $exe=Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
@@ -90,8 +111,10 @@ function Command([string]$root){
  return ('"'+$exe+'" -NoProfile -ExecutionPolicy Bypass -File "'+$script+'"')
 }
 function CheckNewHook($hook,[string]$root){
- $fields=@('command','commandWindows')|Where-Object{$hook.handler.PSObject.Properties.Name -contains $_ -and $hook.handler.$_}
- if(@($fields).Count -ne 1 -or [string]$hook.handler.($fields[0]) -cne (Command $root)){Fail 'G5_HOOK_MODIFIED_EXTERNALLY'}
+ $field=WindowsField $hook
+ if([string]$hook.handler.$field -cne (Command $root)){
+    Fail 'G5_HOOK_MODIFIED_EXTERNALLY'
+ }
 }
 function Files(){return @('manifest.json','background.js','content.js','popup.html','popup.css','popup.js')}
 function SaveExt([string]$dir,[string]$backup){
