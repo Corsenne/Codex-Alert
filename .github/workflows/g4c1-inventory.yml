@@ -1,0 +1,50 @@
+name: G4C1 Read-Only Inventory Source Checks
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C1-Inspect.ps1'
+      - 'G4C1-Inspect.cmd'
+      - 'candidate-g4/tests/g4c1-inventory-contract.test.mjs'
+      - '.github/workflows/g4c1-inventory.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C1-Inspect.ps1'
+      - 'G4C1-Inspect.cmd'
+      - 'candidate-g4/tests/g4c1-inventory-contract.test.mjs'
+      - '.github/workflows/g4c1-inventory.yml'
+permissions:
+  contents: read
+jobs:
+  source-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check read-only inspector contracts
+        run: node --test candidate-g4/tests/g4c1-inventory-contract.test.mjs
+  windows-audit-smoke:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse G4C1 Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens = $null
+          $errorsFound = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C1-Inspect.ps1',[ref]$tokens,[ref]$errorsFound)
+          if (@($errorsFound).Count -ne 0) { throw 'G4C1_POWERSHELL_PARSER_HOLD' }
+          Write-Host 'G4C1_POWERSHELL_PARSER_PASS'
+      - name: Run read-only inventory on synthetic CI Windows host
+        shell: powershell
+        run: |
+          $out = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4C1-Inspect.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'G4C1_WINDOWS_READONLY_SMOKE_FAILED' }
+          $joined = @($out) -join [Environment]::NewLine
+          if ($joined -notmatch 'G4C1_READONLY_INSPECTION_COMPLETE' -or $joined -notmatch 'G4C1_PRODUCT_RELEASE=HOLD') {
+            throw 'G4C1_WINDOWS_AUDIT_OUTPUT_HOLD'
+          }
+          Write-Host 'G4C1_WINDOWS_READONLY_SMOKE_PASS'
