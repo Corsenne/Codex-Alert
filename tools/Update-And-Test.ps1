@@ -135,15 +135,26 @@ try {
         }
         & npm.cmd test
         if($LASTEXITCODE -ne 0){throw 'G2B_NODE_TESTS_FAILED'}
-        & npm.cmd run build
-        if($LASTEXITCODE -ne 0){throw 'G2B_FRONTEND_BUILD_FAILED'}
+        # npm run build alone does not embed React into a debug Cargo executable.
+        # The Tauri CLI build below invokes build.beforeBuildCommand and frontendDist.
     } finally { Pop-Location }
 
     & cargo test --manifest-path (Join-Path $lib 'Cargo.toml')
     if($LASTEXITCODE -ne 0){throw 'G2B_CARGO_TEST_FAILED'}
-    & cargo build --manifest-path (Join-Path $lib 'Cargo.toml')
-    if($LASTEXITCODE -ne 0){throw 'G2B_CARGO_BUILD_FAILED'}
+
+    Push-Location $desktop
+    try {
+        # This MUST be a Tauri CLI build, not a plain 'cargo build':
+        # cargo debug may load devUrl (127.0.0.1:1420) without a running Vite server.
+        # CLI build packages frontendDist into the isolated debug EXE without an installer.
+        & npm.cmd run tauri -- build --debug --no-bundle
+        if($LASTEXITCODE -ne 0){throw 'G2B_TAURI_ASSET_BUILD_FAILED'}
+    } finally { Pop-Location }
+    if(-not (Test-Path -LiteralPath (Join-Path $desktop 'dist\index.html') -PathType Leaf)){
+        throw 'G2B_FRONTEND_DIST_MISSING'
+    }
     if(-not (Test-Path -LiteralPath $exe -PathType Leaf)){throw 'G2B_TEST_EXE_MISSING'}
+    Write-Host 'G2B_TAURI_FRONTEND_EMBED_BUILD_PASS'
     Write-Host 'G2B_ISOLATED_WINDOWS_BUILD_PASS'
     if(Test-Path -LiteralPath $trace -PathType Leaf){Remove-Item -LiteralPath $trace -Force}
     $env:FINISH_ALERT_G2B_TRACE=$trace
