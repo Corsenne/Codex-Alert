@@ -86,6 +86,12 @@ try{
    Replace-Code $path 'FinishAlertG4Test' 'FinishAlertUnified'
   }
  }
+ # Release namespace differs intentionally from the isolated G4 test identity.
+ # Adapt only the test expectations in the disposable staging workspace.
+ $g4Contracts=Join-Path $desktop 'tests\g4-contract.test.mjs'
+ Replace-Code $g4Contracts 'com.corsenne.finishalertdesktop.g4test' 'com.corsenne.finishalertdesktop.unified'
+ Replace-Code $g4Contracts 'corsenne_finish_alert_g4_test_' 'corsenne_finish_alert_v12_'
+ Replace-Code $g4Contracts 'corsenne_finish_alert_g4_cb_' 'corsenne_finish_alert_v12_cb_'
  $assets=Join-Path $lib 'src\assets'
  $icons=Join-Path $lib 'icons'
  foreach($dir in @($assets,$icons)){New-Item -ItemType Directory -Path $dir -Force|Out-Null}
