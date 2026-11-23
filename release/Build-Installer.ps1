@@ -4,7 +4,7 @@
 param([switch]$CiSynthetic)
 $ErrorActionPreference='Stop'
 $repo=Split-Path -Parent $PSScriptRoot
-$work=if($CiSynthetic){Join-Path $env:RUNNER_TEMP 'G5SyntheticNSIS'}else{Join-Path $env:LOCALAPPDATA 'CodexAlertDev\G5ReleaseBuild'}
+$work=if($CiSynthetic){Join-Path $env:RUNNER_TEMP 'G5SyntheticNSIS'}else{Join-Path $env:LOCALAPPDATA ('CodexAlertDev\G5ReleaseBuild-'+(Get-Date -Format 'yyyyMMdd-HHmmss'))}
 $desktop=Join-Path $work 'desktop'
 $lib=Join-Path $desktop 'src-tauri'
 $bundle=Join-Path $lib 'target\release\bundle\nsis'

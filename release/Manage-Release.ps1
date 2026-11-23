@@ -160,7 +160,8 @@ try{
   $h=Hook;$field=LegacyField $h;$n=NativeHost
   $desktopExe=Join-Path $installRoot 'finish-alert-desktop.exe'
   if(-not(Test-Path -LiteralPath $desktopExe -PathType Leaf)){Fail 'G5_INSTALLED_DESKTOP_EXE_MISSING'}
-  if(@(Get-Process -Name 'finish-alert-desktop' -ErrorAction SilentlyContinue).Count -gt 0){Fail 'G5_CLOSE_LEGACY_DESKTOP_BEFORE_ACTIVATE'}
+  $legacyApps=@(Get-Process -Name 'finish-alert-desktop' -ErrorAction SilentlyContinue | Where-Object { -not $_.Path -or $_.Path -ine $desktopExe })
+  if($legacyApps.Count -gt 0){Fail 'G5_CLOSE_LEGACY_DESKTOP_BEFORE_ACTIVATE'}
   $oldRun=Get-ItemPropertyValue -Path $runKey -Name $runName -ErrorAction SilentlyContinue
   if($oldRun){Fail 'G5_AUTORUN_NAME_ALREADY_IN_USE'}
   if(-not $ExtensionDir){$ExtensionDir=[string](Read-Host 'Original unpacked Finish Alert Chrome extension folder')}
@@ -189,7 +190,8 @@ try{
    try{Remove-ItemProperty -Path $runKey -Name $runName -ErrorAction SilentlyContinue}catch{}
    throw
   }
-  try{Start-Process -FilePath $desktopExe -ErrorAction Stop}catch{Write-Host 'G5_DESKTOP_MANUAL_START_REQUIRED'}
+  $alreadyRunning=@(Get-Process -Name 'finish-alert-desktop' -ErrorAction SilentlyContinue | Where-Object { $_.Path -and $_.Path -ieq $desktopExe })
+  if($alreadyRunning.Count -eq 0){try{Start-Process -FilePath $desktopExe -ErrorAction Stop}catch{Write-Host 'G5_DESKTOP_MANUAL_START_REQUIRED'}}
   Write-Host 'G5_ACTIVATED_PASS'
   Write-Host 'G5_ENABLE_ORIGINAL_EXTENSION_AND_RELOAD_CHROME'
   exit 0
