@@ -1,0 +1,20 @@
+{
+  "manifest_version": 3,
+  "name": "Finish Alert G3C Click Test (NO MONITORING)",
+  "version": "0.1.0",
+  "description": "Isolated test: one manual alert, then return to the exact existing ChatGPT tab. No completion monitoring.",
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "windows",
+    "storage"
+  ],
+  "action": {
+    "default_title": "G3C click test",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  },
+  "icons": {}
+}
