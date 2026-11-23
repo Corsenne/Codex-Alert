@@ -10,7 +10,12 @@ test('G4C2 native host installation is isolated, gated and uses accepted G4 brid
  assert.match(x,/STABLE_OFF/);
  assert.match(x,/G4B_OFF/);
  assert.match(x,/Copy-Item -LiteralPath \$source -Destination \$exe/);
- assert.match(x,/Get-FileHash/);
+ assert.match(x,/Get-Sha256Hex/);
+ assert.match(x,/System\.Security\.Cryptography\.SHA256/);
+ assert.match(x,/System\.IO\.File\]::OpenRead/);
+ assert.match(x,/G4C2_EXISTING_IDENTICAL_TEST_BRIDGE_REUSED/);
+ assert.match(x,/G4C2_TEST_BRIDGE_SHA256_VERIFIED/);
+ assert.doesNotMatch(x,/^\s*(?!#).*Get-FileHash\s+-LiteralPath/m);
  assert.match(x,/allowed_origins/);
  assert.doesNotMatch(x,/finish_alert_v2_|hooks\.json|codex-alert\.ps1/);
 });
@@ -33,4 +38,8 @@ test('G4C2 real-use gate requires all three user PASS checks',()=>{
  assert.match(x,/for\(\$i=1;\$i -le 3;\$i\+\+\)/);
  assert.match(x,/G4C2_REAL_COMPLETION_3_OF_3_USER_PASS/);
  assert.match(x,/G4C2_PRODUCT_RELEASE=HOLD/);
+ assert.match(x,/G4C2_NATIVE_HOST_NOT_REGISTERED/);
+ assert.match(x,/G4C2_NATIVE_HOST_PREFLIGHT_PASS/);
+ assert.match(x,/G4C2_NATIVE_HOST_CONFIGURATION_MISMATCH/);
+ assert.match(x,/expectedManifest/);
 });

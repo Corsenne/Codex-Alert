@@ -2,6 +2,20 @@
 [CmdletBinding()]
 param()
 $ErrorActionPreference='Stop'
+# Use only the .NET crypto APIs: some Windows PowerShell environments
+# do not expose Get-FileHash. No external commands or security settings altered.
+function Get-Sha256Hex([string]$path) {
+    $file=$null
+    $sha=$null
+    try {
+        $file=[System.IO.File]::OpenRead($path)
+        $sha=[System.Security.Cryptography.SHA256]::Create()
+        return [System.BitConverter]::ToString($sha.ComputeHash($file)).Replace('-','')
+    }finally{
+        if($null -ne $sha){$sha.Dispose()}
+        if($null -ne $file){$file.Dispose()}
+    }
+}
 $repo=Split-Path -Parent $PSScriptRoot
 $name='com.corsenne.finish_alert_g4c2_test'
 $key='HKCU:\Software\Google\Chrome\NativeMessagingHosts\'+$name
@@ -44,17 +58,21 @@ try {
     if(-not(Test-Path -LiteralPath $bin -PathType Container)){
         New-Item -ItemType Directory -Path $bin -Force|Out-Null
     }
+    $sourceHash=Get-Sha256Hex $source
     if(Test-Path -LiteralPath $exe -PathType Leaf){
-        $oldHash=(Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash
-        $newHash=(Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash
-        if($oldHash -ne $newHash){throw 'G4C2_EXISTING_TEST_BRIDGE_DIFFERENT_NO_OVERWRITE'}
+        # Previous failed attempt may have copied the exact same test binary.
+        # Reuse it only if the SHA-256 digest agrees; never overwrite a mismatch.
+        if((Get-Sha256Hex $exe) -cne $sourceHash){
+            throw 'G4C2_EXISTING_TEST_BRIDGE_DIFFERENT_NO_OVERWRITE'
+        }
+        Write-Host 'G4C2_EXISTING_IDENTICAL_TEST_BRIDGE_REUSED'
     }else{
         Copy-Item -LiteralPath $source -Destination $exe -ErrorAction Stop
     }
-    if((Get-FileHash -LiteralPath $exe -Algorithm SHA256).Hash -ne
-       (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash){
+    if((Get-Sha256Hex $exe) -cne $sourceHash){
         throw 'G4C2_BRIDGE_COPY_HASH_MISMATCH'
     }
+    Write-Host 'G4C2_TEST_BRIDGE_SHA256_VERIFIED'
     $u8=[Text.UTF8Encoding]::new($false)
     $hostManifest=[ordered]@{
         name=$name
