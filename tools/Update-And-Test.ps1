@@ -102,6 +102,9 @@ try {
     Write-Host 'G2B_GITHUB_SYNC_PASS'
     $revision=(& git -C $repo rev-parse --short=12 HEAD)
     Write-Host ('G2B_TEST_SOURCE_COMMIT='+$revision)
+    # Stop here if G3 helper was corrupted in Git, before any G2B rebuild.
+    & "$env:SystemRoot\System32\WindowsPowerShell\v1.0\powershell.exe" -NoProfile -NonInteractive -ExecutionPolicy Bypass -File (Join-Path $repo 'tools\Verify-G3-Helper.ps1')
+    if($LASTEXITCODE -ne 0){throw 'G3_HELPER_SYNTAX_PRECHECK_HOLD'}
 
     # G3 exact-routing tests are source-only and cannot change installed alerts.
     & node --test (Join-Path $repo 'candidate-g3\routing.test.mjs')
