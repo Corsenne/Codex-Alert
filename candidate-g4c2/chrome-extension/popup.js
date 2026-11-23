@@ -1,0 +1,1 @@
+'use strict';chrome.runtime.sendMessage({type:'G4C2_STATUS'}).then(x=>{document.getElementById('state').textContent=x?.ok?'G4C2 ready / Bridge: '+(x.nativeConnected?'connected':'on-demand'):'状態取得不可';}).catch(()=>{document.getElementById('state').textContent='状態取得不可';});
