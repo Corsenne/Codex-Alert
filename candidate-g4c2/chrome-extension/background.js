@@ -1,5 +1,5 @@
 'use strict';
-// G4 isolated test: NO content script, NO automatic completion detection.
+// G4C2 isolated real observer. Metadata-only diagnostics; no response text.
 const HOST='com.corsenne.finish_alert_g4c2_test';
 const KEY='g4c2_routes';
 const OPENED='g4c2_opened';
@@ -108,6 +108,7 @@ function connect(){
   return p;
 }
 // G4C2 OBSERVER CANDIDATE: real completion metadata only, never prompt/answer text.
+const DIAG='g4c2_metadata_diagnostic';
 const SEEN='g4c2_completed_cycles';
 const CYCLE_TTL=120000;
 const activeRemote=new Set();
@@ -182,15 +183,38 @@ async function completeFromContent(message,sender) {
 }
 chrome.runtime.onMessage.addListener((m,sender,reply)=>{
  if(m?.type==='G4C2_STATUS'){
-   void chrome.storage.session.get({[SEEN]:{}}).then(x=>
+   void chrome.storage.session.get({[SEEN]:{},[DIAG]:{}}).then(x=>{
+     const diag=x[DIAG]||{};
      reply({ok:true,mode:'G4C2_REAL_OBSERVER_ISOLATED',
-       nativeConnected:!!port,claims:Object.keys(x[SEEN]||{}).length}))
-     .catch(()=>reply({ok:false,error:'status-unavailable'}));
+       nativeConnected:!!port,claims:Object.keys(x[SEEN]||{}).length,
+       received:diag.received||0,accepted:diag.accepted||0,
+       lastResult:diag.lastResult||'none',activeNative:activeRemote.size,
+       pendingNative:pending.size});
+   }).catch(()=>reply({ok:false,error:'status-unavailable'}));
    return true;
  }
  if(m?.type==='VIEWED')return; // Source observer status, not a notification.
  if(m?.type!=='COMPLETE')return;
- void serial(()=>completeFromContent(m,sender))
-   .then(reply).catch(()=>reply({ok:false,error:'delivery-exception'}));
+ void serial(async()=>{
+   let outcome;
+   try{outcome=await completeFromContent(m,sender);}
+   catch(_){outcome={ok:false,error:'delivery-exception'};}
+   // Persist ONLY a small result class and aggregate counts. No content, URL,
+   // event ID, cycle ID, tab title or stack traces are recorded.
+   try{
+     const record=(await chrome.storage.session.get({[DIAG]:{}}))[DIAG]||{};
+     const result=outcome?.suppressed==='duplicate'?'duplicate':
+       outcome?.ok===true?'accepted':
+       (['invalid-completion-source','native-unavailable','unknown-ack-timeout',
+         'native-post-failed','native-port-disconnected','delivery-exception']
+         .includes(outcome?.error)?outcome.error:'native-rejected');
+     await chrome.storage.session.set({[DIAG]:{
+       received:Math.min(1000,(record.received||0)+1),
+       accepted:Math.min(1000,(record.accepted||0)+(outcome?.ok===true&&outcome?.suppressed!=='duplicate'?1:0)),
+       lastResult:result
+     }});
+   }catch(_){}
+   return outcome;
+ }).then(reply).catch(()=>reply({ok:false,error:'delivery-exception'}));
  return true;
 });

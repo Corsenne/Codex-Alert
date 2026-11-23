@@ -1,1 +1,17 @@
-<!doctype html><html lang="ja"><head><meta charset="utf-8"><title>G4C2 TEST</title><style>body{font:13px Segoe UI,sans-serif;width:260px;padding:12px;background:#0a2030;color:#eefcff}p{color:#a6cedd;line-height:1.5}</style></head><body><strong>Finish Alert G4C2 · TEST</strong><p>隔離版の実回答完了通知。既存v1.1.5はOFFのまま使用。</p><p id="state">状態を確認しています…</p><script src="popup.js"></script></body></html>
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8"><title>G4C2診断</title>
+<style>
+body{font:13px/1.5 Segoe UI,"Yu Gothic UI",sans-serif;width:295px;padding:14px;background:#0a2030;color:#eefcff}
+h1{font-size:14px;margin:0 0 8px}p{color:#b4d0df;margin:7px 0}
+pre{font:12px/1.5 Consolas,monospace;white-space:pre-wrap;overflow-wrap:anywhere;
+ background:#102f42;padding:10px;border-radius:6px;min-height:65px}
+button{width:100%;padding:8px;border:1px solid #4fb8c8;background:#103c50;color:white;border-radius:6px;cursor:pointer}
+small{color:#b4d0df}
+</style></head><body>
+<h1>Finish Alert G4C2 · 診断</h1>
+<p>2回目の通知が出ない場合は、回答完了後に「再取得」を押し、表示を共有。</p>
+<h1>Native配送状態</h1><pre id="state">確認中...</pre>
+<h1>現在のChatGPTタブ検知</h1><pre id="probe">確認中...</pre>
+<button id="refresh" type="button">再取得（読み取り専用）</button>
+<p><small>回数と状態だけを表示。会話の本文・URL・IDは表示しない。</small></p>
+<script src="popup.js"></script></body></html>

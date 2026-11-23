@@ -102,5 +102,9 @@ function harness(){
  const status=await h.send('G4C2_STATUS');
  assert.equal(status.ok,true);
  assert.equal(status.mode,'G4C2_REAL_OBSERVER_ISOLATED');
+ assert.equal(status.received,5,'two valid completions + duplicate + two rejected senders');
+ assert.equal(status.accepted,2,'two distinct REAL completion cycles admitted');
+ assert.equal(status.lastResult,'accepted');
+ assert.equal(status.pendingNative,0);
  console.log('G4C2_REAL_COMPLETION_NATIVE_CALLBACK_MODEL_PASS');
 })().catch(e=>{console.error(e);process.exitCode=1});
