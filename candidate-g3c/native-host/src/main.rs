@@ -132,7 +132,15 @@ fn run()->io::Result<()> {
     let cb_file=create_callback_server()?;
     let cb_pending=Arc::clone(&pending);
     let cb_out=Arc::clone(&stdout);
-    thread::spawn(move||accept_callback(cb_file,cb_pending,cb_out));
+    thread::spawn(move||{
+        // Each click uses one callback connection. Re-arm without polling
+        // so a second manual test can use the same authenticated host.
+        let mut next=Some(cb_file);
+        while let Some(server)=next.take() {
+            accept_callback(server,Arc::clone(&cb_pending),Arc::clone(&cb_out));
+            next=create_callback_server().ok();
+        }
+    });
     let mut stream=match open_forward_pipe() {
         Ok(s)=>BufReader::new(s),
         Err(_)=>{
@@ -151,7 +159,14 @@ fn run()->io::Result<()> {
             continue;
         }
         let id=message["event"]["eventId"].as_str().unwrap().to_string();
-        pending.lock().unwrap().insert(id.clone());
+        {
+            let mut events=pending.lock().unwrap();
+            if events.len()>=32 {
+                send_chrome(&stdout,&json!({"type":"delivery.ack","eventId":id,"ok":false,"error":"g3c-test-queue-limit"}))?;
+                continue;
+            }
+            events.insert(id.clone());
+        }
         message["event"]["bridgeCallbackPipe"]=Value::String(callback_pipe());
         let request=serde_json::to_string(&message)?;
         stream.get_mut().write_all(request.as_bytes())?;
