@@ -5,6 +5,16 @@ import {invoke} from '@tauri-apps/api/core';
 import type {ToastEvent} from './queue';
 import './style.css';
 
+declare global {
+  interface Window {__g2bTrace?: (stage: string) => void;}
+}
+const diag=(stage:string):void=>{
+  // Report only allowlisted static bootstrap stages.
+  try {
+    void invoke('g2b_diagnostic',{stage}).catch(()=>{});
+  } catch {}
+};
+diag('G2B_REACT_MODULE_EXECUTED');
 type FinishAction='click'|'dismiss'|'timeout';
 function useClock(iso:string){
   const date=new Date(iso);return (Number.isFinite(date.getTime())?date:new Date()).toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
@@ -47,13 +57,28 @@ function App(){
     });
   },[]);
   useEffect(()=>{
+    diag('G2B_REACT_EFFECT_STARTED');
     let cancelled=false;let unlisten:(()=>void)|undefined;
     (async()=>{
-      unlisten=await listen<ToastEvent>('finish-alert:active',ev=>{
-        if(!cancelled && ev.payload?.eventId){finishing.current.delete(ev.payload.eventId);setActive(ev.payload);}
-      });
-      if(!cancelled)await invoke('ui_ready');
-    })().catch(err=>console.error('UI listener error',err));
+      try {
+        unlisten=await listen<ToastEvent>('finish-alert:active',ev=>{
+          if(!cancelled && ev.payload?.eventId){finishing.current.delete(ev.payload.eventId);setActive(ev.payload);}
+        });
+        diag('G2B_EVENT_LISTENER_REGISTERED');
+        if(!cancelled) {
+          try {
+            await invoke('ui_ready');
+            diag('G2B_UI_READY_INVOKE_RESOLVED');
+          } catch(err) {
+            diag('G2B_UI_READY_INVOKE_REJECTED');
+            console.error('G2B ui_ready invoke rejected',err);
+          }
+        }
+      } catch (err) {
+        diag('G2B_EVENT_LISTENER_REJECTED');
+        console.error('G2B event listener registration rejected',err);
+      }
+    })();
     return()=>{cancelled=true;unlisten?.();};
   },[]);
   useEffect(()=>{
