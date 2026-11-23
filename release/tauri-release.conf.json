@@ -39,9 +39,9 @@
     "targets": [
       "nsis"
     ],
-    "resources": {
-      "resources/release/": "release/"
-    },
+    "resources": [
+      "resources/release/"
+    ],
     "icon": [
       "icons/icon.ico",
       "icons/128x128.png"
