@@ -12,6 +12,11 @@ test('G4C1 is an inventory and never mutates product settings or processes',()=>
   assert.match(s,/Inspect-AlertProcesses/);
   assert.doesNotMatch(s,/^\s*(?:Set-Item|New-Item|Remove-Item|Stop-Process|Start-Process|Set-ItemProperty|Remove-ItemProperty|Copy-Item|Move-Item|git\s+(?:merge|pull|push))\b/gm);
 });
+test('G4C1 avoids reserved Windows PowerShell HOME automatic variable',()=>{
+  const s=read('tools/G4C1-Inspect.ps1');
+  assert.match(s,/\$codexHomeDir=if\(\$env:CODEX_HOME\)/);
+  assert.doesNotMatch(s,/\$home\s*=/i);
+});
 test('G4C1 never prints raw Chrome origins, hook commands, or conversation content',()=>{
   const s=read('tools/G4C1-Inspect.ps1');
   assert.match(s,/allowed_origins=\$originCount/);

@@ -28,9 +28,9 @@ function Count-HookEvent($document,[string]$eventName) {
 }
 
 function Inspect-Codex {
-    $home=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $env:USERPROFILE '.codex'}
-    $hooks=Join-Path $home 'hooks.json'
-    $toml=Join-Path $home 'config.toml'
+    $codexHomeDir=if($env:CODEX_HOME){$env:CODEX_HOME}else{Join-Path $env:USERPROFILE '.codex'}
+    $hooks=Join-Path $codexHomeDir 'hooks.json'
+    $toml=Join-Path $codexHomeDir 'config.toml'
     $parse='absent'; $doc=$null; $digest=$null
     if(Test-Path -LiteralPath $hooks -PathType Leaf){
         try {
