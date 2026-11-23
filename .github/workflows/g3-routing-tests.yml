@@ -25,3 +25,20 @@ jobs:
         run: |
           node --test candidate-g3/routing.test.mjs
           node candidate-g3/chrome-extension/tests/exact-route.cjs
+
+  windows-routing:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test G3 PowerShell Stop link mapping
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tests\Test-G3-Stop-Link.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+      - name: Test native G3 Codex link validator (Windows Rust)
+        shell: pwsh
+        run: |
+          rustc --edition=2021 --test candidate-g3/desktop/src-tauri/src/g3_routing.rs -o "$env:RUNNER_TEMP\g3-routing-tests.exe"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          & "$env:RUNNER_TEMP\g3-routing-tests.exe"
+          if ($LASTEXITCODE -ne 0) { exit 1 }
