@@ -100,6 +100,8 @@ try {
     Invoke-Git -CommandArguments @('fetch','--quiet','origin',$branch)
     Invoke-Git -CommandArguments @('merge','--ff-only','FETCH_HEAD')
     Write-Host 'G2B_GITHUB_SYNC_PASS'
+    $revision=(& git -C $repo rev-parse --short=12 HEAD)
+    Write-Host ('G2B_TEST_SOURCE_COMMIT='+$revision)
     if(@(Get-Process 'finish-alert-g2b-test' -ErrorAction SilentlyContinue).Count -gt 0){
         throw 'G2B_TEST_ALREADY_RUNNING_CLOSE_ONLY_TEST_APP'
     }
@@ -153,6 +155,19 @@ try {
     if(-not (Test-Path -LiteralPath (Join-Path $desktop 'dist\index.html') -PathType Leaf)){
         throw 'G2B_FRONTEND_DIST_MISSING'
     }
+    # Confirm that the diagnostic HTML and compiled React module actually exist.
+    $htmlOutput=[IO.File]::ReadAllText((Join-Path $desktop 'dist\index.html'))
+    if(-not $htmlOutput.Contains('G2B_HTML_INLINE_EXECUTED')) {
+        throw 'G2B_DIAGNOSTIC_HTML_NOT_INCLUDED'
+    }
+    $builtJS=@(Get-ChildItem -LiteralPath (Join-Path $desktop 'dist\assets') -Filter '*.js' -File -ErrorAction Stop)
+    $reactMarkerFound=$false
+    foreach($builtAsset in $builtJS) {
+        $assetText=[IO.File]::ReadAllText($builtAsset.FullName)
+        if($assetText.Contains('G2B_REACT_MODULE_EXECUTED')){$reactMarkerFound=$true;break}
+    }
+    if(-not $reactMarkerFound){throw 'G2B_DIAGNOSTIC_REACT_NOT_INCLUDED'}
+    Write-Host 'G2B_FRONTEND_DIAGNOSTIC_ASSETS_PASS'
     if(-not (Test-Path -LiteralPath $exe -PathType Leaf)){throw 'G2B_TEST_EXE_MISSING'}
     Write-Host 'G2B_TAURI_FRONTEND_EMBED_BUILD_PASS'
     Write-Host 'G2B_ISOLATED_WINDOWS_BUILD_PASS'
