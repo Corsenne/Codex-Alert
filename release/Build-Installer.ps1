@@ -73,6 +73,9 @@ try{
  if($releaseConfig.identifier -cne 'com.corsenne.finishalertdesktop.unified' -or
      $releaseConfig.bundle.windows.nsis.installMode -cne 'currentUser'){throw 'G5_RELEASE_IDENTITY_MISMATCH'}
  Copy-Item -LiteralPath (Join-Path $repo 'release\tauri-release.conf.json') -Destination (Join-Path $lib 'tauri.conf.json') -Force
+ # Align all staged build version metadata with the release ID.
+ Replace-Code (Join-Path $desktop 'package.json') '"version": "1.2.0"' '"version": "1.2.1"'
+ Replace-Code (Join-Path $lib 'Cargo.toml') 'version = "1.2.0"' 'version = "1.2.1"'
  $hookDir=Join-Path $lib 'windows'
  New-Item -ItemType Directory -Path $hookDir -Force|Out-Null
  Copy-Item -LiteralPath (Join-Path $repo 'release\windows\release-hooks.nsh') -Destination (Join-Path $hookDir 'release-hooks.nsh') -Force
@@ -86,6 +89,11 @@ try{
    Replace-Code $path 'corsenne_finish_alert_g4_cb_' 'corsenne_finish_alert_v12_cb_'
   }elseif($file -eq 'src\lib.rs'){
    Replace-Code $path 'FinishAlertG4Test' 'FinishAlertUnified'
+   # G4 candidate tray tooltip was accidentally bundled in v1.2.0.
+   # Replace it only in the disposable release workspace, never in G4 test sources.
+   Replace-Code $path '.tooltip("Finish Alert G4 TEST (not installed)")' '.tooltip("Finish Alert Unified")'
+   $unifiedRust=[IO.File]::ReadAllText($path)
+   if($unifiedRust.Contains('Finish Alert G4 TEST (not installed)') -or -not $unifiedRust.Contains('.tooltip("Finish Alert Unified")')){throw 'G5_TRAY_TITLE_NOT_REPLACED'}
   }
  }
  # Release namespace differs intentionally from the isolated G4 test identity.
@@ -167,7 +175,8 @@ try{
   $stream=[IO.File]::OpenRead($dest)
   try{$digest=[BitConverter]::ToString($sha.ComputeHash($stream)).Replace('-','')}finally{$stream.Dispose()}
  }finally{$sha.Dispose()}
- Write-Host 'G5_V120_NSIS_READY'
+ Write-Host 'G5_V121_NSIS_READY'
+ Write-Host 'G5_NSIS_READY'
  Write-Host ('G5_SETUP='+$dest)
  Write-Host ('G5_SHA256='+$digest)
  Write-Host 'G5_SETUP_NOT_EXECUTED'
