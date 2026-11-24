@@ -48,7 +48,7 @@ try{
  if(-not(Test-Path -LiteralPath $backup -PathType Leaf)){
   [IO.File]::WriteAllText($backup,$current,[Text.UTF8Encoding]::new($false))
  }
- $temporary=Join-Path $dir 'background.js.g5-new'
+ $temporary=Join-Path $dir 'background.g5-new.js'
  [IO.File]::WriteAllText($temporary,$approved,[Text.UTF8Encoding]::new($false))
  & node --check $temporary
  if($LASTEXITCODE -ne 0){Remove-Item -LiteralPath $temporary -Force;Fail 'G5_REPAIR_TEMP_SYNTAX_HOLD'}
