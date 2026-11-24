@@ -140,19 +140,13 @@ try{
  Copy-Item -LiteralPath (Join-Path $repo 'candidate-g4\Codex-Stop-to-G4.ps1') -Destination $adapter -Force
  Replace-Code $adapter 'corsenne_finish_alert_g4_test_' 'corsenne_finish_alert_v12_'
  Copy-Item -LiteralPath (Join-Path $repo 'release\extension') -Destination (Join-Path $resources 'extension') -Recurse -Force
- Copy-Item -LiteralPath (Join-Path $repo 'candidate-g4c2\chrome-extension\background.js') -Destination (Join-Path $resources 'extension\background.js') -Force
- Copy-Item -LiteralPath (Join-Path $repo 'candidate-g4c2\chrome-extension\content.js') -Destination (Join-Path $resources 'extension\content.js') -Force
+ # Bundle the reviewed release worker exactly as tested; do not generate it with text replacement.
  $bg=Join-Path $resources 'extension\background.js'
- Replace-Code $bg "const HOST='com.corsenne.finish_alert_g4c2_test';" "const HOST='com.corsenne.finish_alert';"
- Replace-Code $bg ' if(!(await claimCycle(route.cycleKey)))return {ok:true,suppressed:'duplicate'};' @'
- const settings=await chrome.storage.local.get({enabled:true,soundId:'female',soundVolume:85});
- if(settings.enabled===false)return {ok:true,suppressed:'disabled'};
- const soundId=['holo','soft','pulse','female'].includes(settings.soundId)?settings.soundId:'female';
- const soundVolume=Number.isFinite(Number(settings.soundVolume))?
-     Math.max(0,Math.min(100,Math.round(Number(settings.soundVolume)))):85;
- if(!(await claimCycle(route.cycleKey)))return {ok:true,suppressed:'duplicate'};
-'@
- Replace-Code $bg "soundId:'female',soundVolume:85,audioOwner:'desktop'" "soundId,soundVolume,audioOwner:'desktop'"
+ if(-not(Test-Path -LiteralPath $bg -PathType Leaf)){throw 'G5_RELEASE_WORKER_MISSING'}
+ & node --check $bg
+ if($LASTEXITCODE -ne 0){throw 'G5_RELEASE_WORKER_SYNTAX_HOLD'}
+ Write-Host 'G5_RELEASE_WORKER_SYNTAX_PASS'
+
  $version=[string]$releaseConfig.version
  [IO.File]::WriteAllText((Join-Path $resources 'release-version.txt'),$version,[Text.UTF8Encoding]::new($false))
  if($CiSynthetic){Silent-Wav (Join-Path $resources 'private-leo.wav')}
