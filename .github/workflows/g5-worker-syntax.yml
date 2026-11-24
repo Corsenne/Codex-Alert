@@ -1,0 +1,36 @@
+name: G5 Release Service Worker JavaScript Syntax
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/extension/background.js'
+      - 'release/Build-Installer.ps1'
+      - 'release/Repair-Activated-Worker.ps1'
+      - 'G5-Repair-Worker.cmd'
+      - '.github/workflows/g5-worker-syntax.yml'
+  pull_request:
+    paths:
+      - 'release/extension/background.js'
+      - 'release/Build-Installer.ps1'
+      - 'release/Repair-Activated-Worker.ps1'
+      - 'G5-Repair-Worker.cmd'
+      - '.github/workflows/g5-worker-syntax.yml'
+permissions:
+  contents: read
+jobs:
+  windows-syntax:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check distribution worker syntax before packaging
+        shell: pwsh
+        run: |
+          node --check release/extension/background.js
+          if ($LASTEXITCODE -ne 0) { throw 'G5_WORKER_SYNTAX_HOLD' }
+      - name: Check repair PowerShell parser
+        shell: powershell
+        run: |
+          $tok=$null; $err=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd 'release\Repair-Activated-Worker.ps1'),[ref]$tok,[ref]$err)
+          if (@($err).Count -ne 0) { throw 'G5_WORKER_REPAIR_PS_PARSE_HOLD' }
+          Write-Host 'G5_WORKER_AND_REPAIR_SYNTAX_PASS'

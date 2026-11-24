@@ -1,0 +1,42 @@
+name: G4C2R Offline Stage Trace Read-only
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C2R-Inspect.ps1'
+      - 'G4C2R-Inspect.cmd'
+      - 'candidate-g4c2/tests/g4c2r-inspect.test.mjs'
+      - '.github/workflows/g4c2r-offline-inspect.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4c2/tests/g4c2r-inspect.test.mjs
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Windows PowerShell 5.1 syntax
+        shell: powershell
+        run: |
+          $tokens=$null;$errorsFound=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4C2R-Inspect.ps1',[ref]$tokens,[ref]$errorsFound)
+          if(@($errorsFound).Count -ne 0){throw 'G4C2R_PS_PARSE_HOLD'}
+          Write-Host 'G4C2R_PS_AST_PASS'
+      - name: Missing traces fail closed without mutation
+        shell: powershell
+        run: |
+          $out=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools/G4C2R-Inspect.ps1')
+          if($LASTEXITCODE -ne 2 -or $out -notcontains 'G4C2R_HOLD_NO_VALID_TRACE_AVAILABLE'){
+            $out | ForEach-Object {Write-Host $_}
+            throw 'G4C2R_EXPECTED_NO_TRACE_HOLD_NOT_OBSERVED'
+          }
+          Write-Host 'G4C2R_NO_TRACE_FAIL_CLOSED_PASS'
+          $global:LASTEXITCODE=0 # Expected child exit 2 has been asserted above.

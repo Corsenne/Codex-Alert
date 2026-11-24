@@ -1,0 +1,25 @@
+name: G5 Stop Hook Windows Field Compatibility
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/Manage-Release.ps1'
+      - 'release/tests/Test-G5-Hook-Fields.ps1'
+      - '.github/workflows/g5-hook-fields.yml'
+  pull_request:
+    paths:
+      - 'release/Manage-Release.ps1'
+      - 'release/tests/Test-G5-Hook-Fields.ps1'
+      - '.github/workflows/g5-hook-fields.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test single and dual Stop command keys
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File release/tests/Test-G5-Hook-Fields.ps1
+          if($LASTEXITCODE -ne 0){throw 'G5_FIELD_REGRESSION_HOLD'}

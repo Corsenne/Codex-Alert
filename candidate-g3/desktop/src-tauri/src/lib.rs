@@ -1,0 +1,321 @@
+#![cfg(windows)]
+use serde::{Deserialize,Serialize};
+use std::sync::{Arc,Mutex,atomic::{AtomicBool,AtomicU64,Ordering}};
+use tauri::{Manager,Emitter};
+use tauri::menu::{Menu,MenuItem};
+use tauri::tray::TrayIconBuilder;
+
+mod ipc;
+mod delivery;
+mod g3_routing;
+
+#[derive(Debug,Clone,Serialize,Deserialize)]
+#[serde(rename_all="camelCase")]
+pub struct AlertEvent {
+    pub version:u32,
+    pub event_id:String,
+    pub chat_title:String,
+    pub completed_at:String,
+    #[serde(default)] pub source:Option<String>,
+    #[serde(default)] pub open_target:Option<String>,
+    #[serde(default)] pub conversation_url:Option<String>,
+    #[serde(default)] pub tab_id:i32,
+    #[serde(default)] pub window_id:i32,
+}
+pub struct Shared{
+    ui_ready:AtomicBool,
+    queue:Mutex<delivery::Queue>,
+    connections:Mutex<Vec<(u64,std::sync::mpsc::Sender<String>)>>,
+    next_connection:AtomicU64,
+}
+impl Shared {fn new()->Self{Self{ui_ready:AtomicBool::new(false),queue:Mutex::new(delivery::Queue::new()),connections:Mutex::new(Vec::new()),next_connection:AtomicU64::new(1)}}}
+fn valid_conversation_url(value:&str)->bool{
+    // Never execute arbitrary URLs. We do not open this URL in Rust; this is defense-in-depth.
+    if value.contains(&['?','#','\\',' ','\n','\r'][..]) {return false;}
+    let path=value.strip_prefix("https://chatgpt.com/")
+         .or_else(||value.strip_prefix("https://chat.openai.com/"));
+    let Some(path)=path else{return false;};
+    if path.len()>240{return false;}
+    let parts:Vec<&str>=path.trim_end_matches('/').split('/').collect();
+    let valid_id=|s:&str| s.len()>=8&&s.len()<=100&&s.chars().all(|c|c.is_ascii_alphanumeric()||c=='_'||c=='-');
+    match parts.as_slice(){["c",id]=>valid_id(id),["g",g,"c",id]=>g.len()>=3&&valid_id(id)&&g.chars().all(|c|c.is_ascii_alphanumeric()||c=='_'||c=='-'),_=>false}
+}
+/// Make a copy of a PCM-16 RIFF/WAVE clip with per-notification amplitude scaling.
+/// This changes the sound itself, never Windows global or application mixer volume.
+fn scaled_pcm16_wav(source:&[u8],volume:u8)->Option<Vec<u8>>{
+    if source.len()<44 || &source[0..4]!=b"RIFF" || &source[8..12]!=b"WAVE" || volume>100 {return None;}
+    let mut out=source.to_vec();
+    let mut pos=12_usize;
+    let mut pcm16=false;
+    let mut regions=Vec::new();
+    while pos.checked_add(8)?<=source.len() {
+        let size=u32::from_le_bytes(source[pos+4..pos+8].try_into().ok()?) as usize;
+        let body=pos.checked_add(8)?;
+        let end=body.checked_add(size)?;
+        if end>source.len(){return None;}
+        let chunk=&source[pos..pos+4];
+        if chunk==b"fmt " && size>=16 {
+            let format=u16::from_le_bytes(source[body..body+2].try_into().ok()?);
+            let bits=u16::from_le_bytes(source[body+14..body+16].try_into().ok()?);
+            pcm16=format==1 && bits==16;
+        } else if chunk==b"data" {
+            if size%2!=0{return None;}
+            regions.push((body,end));
+        }
+        pos=end.checked_add(size&1)?;
+    }
+    if !pcm16 || regions.is_empty(){return None;}
+    for (body,end) in regions {
+        for i in (body..end).step_by(2) {
+            let sample=i16::from_le_bytes([source[i],source[i+1]]);
+            let adjusted=((sample as i32)*(volume as i32)/100) as i16;
+            out[i..i+2].copy_from_slice(&adjusted.to_le_bytes());
+        }
+    }
+    Some(out)
+}
+#[cfg(windows)]
+fn play_chime(sound_id:&str,volume:u8){
+    use std::os::windows::ffi::OsStrExt;
+    use std::sync::OnceLock;
+    use std::collections::VecDeque;
+    use std::path::PathBuf;
+    #[link(name="winmm")]
+    extern "system" {fn PlaySoundW(sound:*const u16,module:*mut std::ffi::c_void,flags:u32)->i32;}
+    if volume==0 {return;}
+    let (id,bytes):(&'static str,&'static [u8])=match sound_id {
+        "soft"=>("soft",include_bytes!("assets/soft.wav")),
+        "pulse"=>("pulse",include_bytes!("assets/pulse.wav")),
+        "female"=>("female",include_bytes!("assets/female.wav")),
+        _=>("holo",include_bytes!("assets/holo.wav")),
+    };
+    struct AudioCache {dir:PathBuf,entries:VecDeque<(String,PathBuf)>}
+    impl AudioCache {
+        fn new()->Self {
+            let base=std::env::var_os("LOCALAPPDATA").map(PathBuf::from).unwrap_or_else(std::env::temp_dir);
+            let dir=base.join("FinishAlertDesktop").join("audio-cache-v112");
+            // Single-instance application: old per-volume cache can be discarded on start.
+            let _=std::fs::remove_dir_all(&dir);
+            let _=std::fs::create_dir_all(&dir);
+            Self {dir,entries:VecDeque::new()}
+        }
+    }
+    static CACHE:OnceLock<Mutex<AudioCache>>=OnceLock::new();
+    let cache=CACHE.get_or_init(||Mutex::new(AudioCache::new()));
+    let key=format!("{id}-{volume}");
+    let path={
+        let mut cache=cache.lock().unwrap();
+        if let Some((_,file))=cache.entries.iter().find(|(k,_)|k==&key){file.clone()}
+        else {
+            let file=cache.dir.join(format!("{key}.wav"));
+            let Some(wav)=scaled_pcm16_wav(bytes,volume) else {
+                eprintln!("Audio decode failed for {id}");return;
+            };
+            if let Err(e)=std::fs::write(&file,wav){eprintln!("Audio cache write failed: {e}");return;}
+            cache.entries.push_back((key,file.clone()));
+            while cache.entries.len()>16 {
+                if let Some((_,old))=cache.entries.pop_front(){let _=std::fs::remove_file(old);}
+            }
+            file
+        }
+    };
+    let wide:Vec<u16>=path.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    const FLAGS:u32=0x0002_0000|0x0000_0001|0x0000_0002; // SND_FILENAME|SND_ASYNC|SND_NODEFAULT
+    if unsafe{PlaySoundW(wide.as_ptr(),std::ptr::null_mut(),FLAGS)}==0 {eprintln!("PlaySoundW failed for {id}");}
+}
+
+
+/// Codex audio is deliberately a PRIVATE LOCAL asset, not embedded in the public repository.
+/// Validation and cache are bounded; no arbitrary path may arrive from the pipe request.
+#[cfg(windows)]
+fn play_codex_voice(volume:u8){
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name="winmm")]
+    extern "system" {fn PlaySoundW(sound:*const u16,module:*mut std::ffi::c_void,flags:u32)->i32;}
+    if volume==0{return;}
+    let Some(root)=std::env::var_os("LOCALAPPDATA") else{return;};
+    let path=std::path::PathBuf::from(root).join("FinishAlertDesktop").join("private-audio").join("codex-leo.wav");
+    let Ok(meta)=std::fs::metadata(&path) else {return;};
+    if !meta.is_file()||meta.len()>2_000_000 {return;}
+    let Ok(original)=std::fs::read(&path) else{return;};
+    let Some(scaled)=scaled_pcm16_wav(&original,volume) else{return;};
+    let cache=std::env::temp_dir().join("finish-alert-codex-audio");
+    if std::fs::create_dir_all(&cache).is_err(){return;}
+    // Per-volume, per-source checksum in filename prevents stale audio after user replaces clip.
+    let mut h:u64=0xcbf29ce484222325;
+    for byte in &original {h=(h^(*byte as u64)).wrapping_mul(0x100000001b3);}
+    let filename=cache.join(format!("leo-{h:016x}-{volume}.wav"));
+    if !filename.is_file() && std::fs::write(&filename,scaled).is_err(){return;}
+    let wide:Vec<u16>=filename.as_os_str().encode_wide().chain(std::iter::once(0)).collect();
+    const FLAGS:u32=0x0002_0000|0x0000_0001|0x0000_0002;
+    unsafe{PlaySoundW(wide.as_ptr(),std::ptr::null_mut(),FLAGS);}
+}
+
+/// Stops our asynchronous WAV immediately, before any click navigation or next alert.
+#[cfg(windows)]
+fn stop_audio(){
+    #[link(name="winmm")]
+    extern "system" { fn PlaySoundW(sound:*const u16,module:*mut std::ffi::c_void,flags:u32)->i32; }
+    unsafe { PlaySoundW(std::ptr::null(),std::ptr::null_mut(),0); }
+}
+
+#[repr(C)]struct Point{x:i32,y:i32}
+#[repr(C)]struct Rect{left:i32,top:i32,right:i32,bottom:i32}
+#[repr(C)]struct MonitorInfo{size:u32,monitor:Rect,work:Rect,flags:u32}
+#[link(name="user32")]
+extern "system" {
+    fn MonitorFromPoint(point:Point,flags:u32)->*mut std::ffi::c_void;
+    fn GetMonitorInfoW(handle:*mut std::ffi::c_void,info:*mut MonitorInfo)->i32;
+}
+fn primary_work_area()->Option<(i32,i32,i32,i32)>{
+    let h=unsafe{MonitorFromPoint(Point{x:0,y:0},1)}; // MONITOR_DEFAULTTOPRIMARY
+    if h.is_null(){return None;}
+    let mut info=MonitorInfo{size:std::mem::size_of::<MonitorInfo>() as u32,
+       monitor:Rect{left:0,top:0,right:0,bottom:0},work:Rect{left:0,top:0,right:0,bottom:0},flags:0};
+    if unsafe{GetMonitorInfoW(h,&mut info)}==0{return None;}
+    Some((info.work.left,info.work.top,info.work.right,info.work.bottom))
+}
+#[tauri::command]
+fn ui_ready(shared:tauri::State<'_,Arc<Shared>>)->bool{
+    shared.ui_ready.store(true,Ordering::SeqCst);true
+}
+#[tauri::command]
+fn set_visible_count(window:tauri::WebviewWindow,shared:tauri::State<'_,Arc<Shared>>,
+                     count:u8,event_id:Option<String>)->Result<(),String>{
+    // Ignore stale UI effects during transitions between two queued notifications.
+    let current=shared.queue.lock().map_err(|_|"queue-lock-failed")?
+        .active.as_ref().map(|d|d.event.event_id.clone());
+    if current!=event_id{return Ok(());}
+    if count==0{return window.hide().map_err(|e|e.to_string());}
+    let scale=window.scale_factor().unwrap_or(1.0).max(0.5);
+    let work=primary_work_area().ok_or("primary-monitor-not-found")?;
+    let width=((work.2-work.0) as f64/scale-20.0).min(420.0).max(280.0);
+    let height=124.0_f64.min((work.3-work.1) as f64/scale-16.0);
+    window.set_size(tauri::Size::Logical(tauri::LogicalSize::new(width,height))).map_err(|e|e.to_string())?;
+    let x=(work.2-(width*scale).ceil() as i32-(12.0*scale) as i32).max(work.0);
+    let y=(work.3-(height*scale).ceil() as i32-(12.0*scale) as i32).max(work.1);
+    window.set_position(tauri::Position::Physical(tauri::PhysicalPosition::new(x,y))).map_err(|e|e.to_string())?;
+    window.set_focusable(false).map_err(|e|e.to_string())?;
+    window.set_always_on_top(true).map_err(|e|e.to_string())?;
+    window.show().map_err(|e|e.to_string())
+}
+#[tauri::command]
+fn notification_visible(shared:tauri::State<'_,Arc<Shared>>,event_id:String)->Result<(),String>{
+    // The front-end calls this only after successful window.show and a paint boundary.
+    // Keep the actor lock until the audio call finishes. Otherwise a click
+    // may stop playback BEFORE a concurrent visibility callback starts it.
+    let mut queue=shared.queue.lock().map_err(|_|"queue-lock-failed")?;
+    if let Some((sound,volume))=queue.mark_visible(&event_id) {
+        if sound=="leo"{play_codex_voice(volume)} else {play_chime(&sound,volume)}
+    }
+    Ok(())
+}
+#[tauri::command]
+fn complete_notification(app:tauri::AppHandle,shared:tauri::State<'_,Arc<Shared>>,
+                         event_id:String,action:String)->Result<(),String>{
+    if !matches!(action.as_str(),"click"|"dismiss"|"timeout") {return Err("invalid-action".into());}
+    let (finished,next)={
+        let mut q=shared.queue.lock().map_err(|_|"queue-lock-failed")?;
+        if q.active.as_ref().map(|d|d.event.event_id.as_str())!=Some(event_id.as_str()){
+            return Err("stale-event".into());
+        }
+        // Stop first, synchronously. No next event can play until its visibility ACK.
+        stop_audio();
+        q.complete(&event_id).ok_or("event-not-active")?
+    };
+    if action=="click" {
+        match finished.event.source.as_deref(){
+            Some("codex")=>{
+                // Exact link is optional and is only created by the verified Stop adapter.
+                // Missing/invalid links fail closed, not to project root or a random chat.
+                if let Some(ref target)=finished.event.open_target {
+                    if g3_routing::valid_codex_thread_target(target) {
+                        let _=g3_routing::open_codex_thread_target(target);
+                    }
+                }
+            }
+            _=>{
+                // Only notify the Native Messaging connection that delivered this event.
+                // This avoids fanout to stale/duplicate bridge processes.
+                let routed=finished.connection_id.map_or(false,|conn|
+                    ipc::notify_open_to(shared.inner(),conn,&finished.event.event_id));
+                if !routed {
+                    // Strictly validated conversation URL fallback; opens the same chat,
+                    // though it cannot guarantee reuse of the already-open Chrome tab.
+                    if let Some(ref url)=finished.event.conversation_url {
+                        if valid_conversation_url(url) {let _=open_chat_url(url);}
+                    }
+                }
+            }
+        }
+    }
+    if let Some(conn)=finished.connection_id {
+        let _=ipc::notify_closed_to(shared.inner(),conn,&finished.event.event_id);
+    }
+    if let Some(next)=next {
+        app.emit_to("main","finish-alert:active",&next.event).map_err(|e|e.to_string())?;
+    }
+    Ok(())
+}
+#[cfg(windows)]
+fn open_chat_url(url:&str)->bool {
+    use std::os::windows::ffi::OsStrExt;
+    #[link(name="shell32")]
+    extern "system" {fn ShellExecuteW(hwnd:*mut std::ffi::c_void,operation:*const u16,file:*const u16,
+        params:*const u16,directory:*const u16,show:i32)->*mut std::ffi::c_void;}
+    if !valid_conversation_url(url){return false;}
+    let target:Vec<u16>=std::ffi::OsStr::new(url).encode_wide().chain(std::iter::once(0)).collect();
+    let action:Vec<u16>="open".encode_utf16().chain(std::iter::once(0)).collect();
+    (unsafe{ShellExecuteW(std::ptr::null_mut(),action.as_ptr(),target.as_ptr(),
+        std::ptr::null(),std::ptr::null(),1)} as isize)>32
+}
+
+pub fn run(){
+    tauri::Builder::default()
+      .plugin(tauri_plugin_single_instance::init(|_,_,_|{}))
+      .setup(|app|{
+          let shared=Arc::new(Shared::new());
+          app.manage(shared.clone());
+          ipc::launch(app.handle().clone(),shared);
+          let quit=MenuItem::with_id(app,"quit","終了",true,None::<&str>)?;
+          let menu=Menu::with_items(app,&[&quit])?;
+          TrayIconBuilder::new().icon(app.default_window_icon().ok_or("missing application icon")?.clone())
+            .tooltip("FINISH ALERT — ChatGPT / Codex")
+            .menu(&menu)
+            .on_menu_event(|app,event|match event.id().as_ref(){
+                "quit"=>app.exit(0),
+                _=>{}
+            }).build(app)?;
+          if let Some(win)=app.get_webview_window("main") {let _=win.set_focusable(false);}
+          Ok(())
+      })
+      .invoke_handler(tauri::generate_handler![ui_ready,set_visible_count,notification_visible,complete_notification])
+      .on_window_event(|win,event|{
+        if let tauri::WindowEvent::CloseRequested{api,..}=event{
+          api.prevent_close();let _=win.hide();
+        }
+      })
+      .run(tauri::generate_context!()).expect("Finish Alert Tauri runtime failed");
+}
+
+#[cfg(test)]mod tests{
+    use super::*;
+    #[test]fn volume_scaling_keeps_wav_structure(){
+        for sound in [include_bytes!("assets/holo.wav").as_slice(),include_bytes!("assets/female.wav").as_slice()] {
+            let full=scaled_pcm16_wav(sound,100).unwrap();
+            assert_eq!(full,sound);
+            let half=scaled_pcm16_wav(sound,50).unwrap();
+            assert_eq!(half.len(),sound.len());
+            assert_eq!(&half[0..12],&sound[0..12]);
+            let silent=scaled_pcm16_wav(sound,0).unwrap();
+            assert_eq!(silent.len(),sound.len());
+            assert!(scaled_pcm16_wav(sound,101).is_none());
+        }
+    }
+    #[test]fn exact_chatgpt_urls_only(){
+        assert!(valid_conversation_url("https://chatgpt.com/c/12345678-1234"));
+        assert!(valid_conversation_url("https://chatgpt.com/g/g-12345678/c/abcdefg123456"));
+        assert!(!valid_conversation_url("https://evil.example/c/12345678"));
+        assert!(!valid_conversation_url("https://chatgpt.com/c/12345678?x=1"));
+    }
+}

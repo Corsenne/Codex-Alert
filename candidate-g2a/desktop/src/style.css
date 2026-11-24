@@ -1,0 +1,70 @@
+/* Finish Alert Desktop v1.1.4 — Approved compact banner.
+   Text, time and click target stay dynamic. The emblem is an original CSS glyph. */
+:root {
+  color-scheme:dark;
+  font-family:'Yu Gothic UI','Meiryo','Segoe UI',sans-serif;
+  background:transparent;color:#edfaff;font-synthesis:none;
+}
+* {box-sizing:border-box;}
+html,body,#root {height:100%;width:100%;margin:0;background:transparent;overflow:hidden;}
+/* Geometry paired with set_visible_count() in Rust. */
+.stack {height:100%;width:100%;display:flex;justify-content:flex-end;flex-direction:column;gap:7px;padding:6px 9px;}
+.toast {
+  position:relative;isolation:isolate;display:flex;flex-direction:column;
+  width:100%;height:112px;flex:0 0 112px;
+  border:1px solid rgba(103,207,244,.83);border-radius:13px;
+  background:linear-gradient(114deg,#071b2c 1%,#0b2f47 67%,#0c3650 100%);
+  box-shadow:0 9px 25px rgba(0,0,0,.35),inset 0 1px 0 rgba(177,232,255,.22),0 0 15px rgba(52,163,210,.22);
+  overflow:hidden;cursor:pointer;user-select:none;
+  animation:entry .22s ease-out both;
+}
+.toast::before {
+  content:'';position:absolute;inset:0;pointer-events:none;z-index:-1;
+  background:radial-gradient(circle at 2% 62%,rgba(56,192,232,.13),transparent 29%);
+}
+.toast:focus-visible {outline:2px solid #f5dc8c;outline-offset:-3px;}
+.toast:hover {border-color:#c2f5ff;background:linear-gradient(114deg,#0b273b,#11425c);}
+.line-top {
+  display:flex;align-items:center;gap:7px;flex:0 0 34px;
+  padding:7px 12px 0 13px;min-width:0;
+  font:700 9px/1.1 'Consolas','Segoe UI',sans-serif;
+  letter-spacing:1.25px;color:#93eaff;
+}
+.status-emblem {
+  display:grid;place-items:center;flex:0 0 18px;width:18px;height:18px;
+  border-radius:50%;border:1px solid rgba(149,235,255,.96);
+  background:radial-gradient(circle at 35% 28%,#194c64,#0c2b40 75%);
+  color:#e1fbff;font:800 13px/1 'Segoe UI',sans-serif;
+  box-shadow:0 0 0 2px rgba(66,184,229,.15),0 0 11px rgba(77,213,248,.58),inset 0 0 5px rgba(89,213,255,.23);
+  text-shadow:0 0 6px rgba(178,248,255,.7);
+}
+.brand {white-space:nowrap;}
+.complete {margin-left:auto;white-space:nowrap;color:#ffde83;font-size:8px;letter-spacing:1px;}
+.line-top time {color:#9fc4d3;font-weight:500;letter-spacing:0;margin-left:3px;white-space:nowrap;}
+.close {
+  flex:0 0 19px;align-self:center;min-width:19px;height:19px;padding:0 1px;margin-left:3px;
+  border:0;border-radius:4px;background:transparent;
+  color:#a3cad7;font-size:18px;line-height:18px;text-align:center;cursor:pointer;
+}
+.close:hover {color:#fff;background:rgba(133,208,235,.2);}
+.content {display:flex;flex:1;min-height:0;align-items:center;gap:11px;padding:0 16px 10px;}
+.star {
+  display:grid;place-items:center;flex:0 0 42px;width:42px;height:42px;border-radius:50%;
+  color:#ffe197;font-size:30px;
+  background:radial-gradient(circle,rgba(66,150,181,.31),transparent 74%);
+  text-shadow:0 0 8px rgba(247,213,122,.85),0 0 15px rgba(122,222,255,.26);
+}
+.message {display:flex;flex-direction:column;gap:5px;overflow:hidden;flex:1;min-width:0;}
+.message strong {
+  font-size:14px;font-weight:700;line-height:1.32;color:#fff;
+  overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:100%;
+}
+.message span {font-size:10.5px;line-height:1.4;color:#cdeaf6;}
+.timer {position:absolute;bottom:0;left:0;right:0;height:3px;background:rgba(70,141,170,.25);}
+.timer div {height:100%;background:linear-gradient(90deg,#2b9bc0,#a6f4ff);animation:shrink 8s linear forwards;box-shadow:0 0 8px #51dfff;}
+@keyframes shrink {from{width:100%}to{width:0}}
+@keyframes entry {from{transform:translateX(20px);opacity:0}to{transform:translateX(0);opacity:1}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:0ms!important}}
+
+.codex-toast {cursor:default;}
+.codex-toast:hover {border-color:rgba(103,207,244,.83);background:linear-gradient(114deg,#071b2c 1%,#0b2f47 67%,#0c3650 100%);}

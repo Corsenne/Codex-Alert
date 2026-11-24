@@ -1,0 +1,31 @@
+{
+  "manifest_version": 3,
+  "name": "Finish Alert G4C2 Real Completion TEST (ISOLATED)",
+  "version": "0.1.0",
+  "description": "G4C2 isolated real ChatGPT completion observer; requires legacy v1.1.5 disabled. Uses G4 FIFO and native audio only.",
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "windows",
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://chatgpt.com/*",
+        "https://chat.openai.com/*"
+      ],
+      "js": [
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_title": "G4C2 Real Completion TEST",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

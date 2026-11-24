@@ -1,0 +1,25 @@
+name: G5 Codex Stage Diagnostics
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/diagnostic/Codex-Stop-to-v12.diagnostic.ps1'
+      - 'release/Enable-Codex-Diagnostics.ps1'
+      - 'G5-Enable-Codex-Diagnostics.cmd'
+      - '.github/workflows/g5-codex-diagnostics.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse diagnostic tools with Windows PowerShell
+        shell: powershell
+        run: |
+          foreach ($p in @('release/diagnostic/Codex-Stop-to-v12.diagnostic.ps1','release/Enable-Codex-Diagnostics.ps1')) {
+            $t=$null; $errorsFound=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Join-Path $pwd $p),[ref]$t,[ref]$errorsFound)
+            if (@($errorsFound).Count) { throw 'G5_DIAG_PARSE_HOLD' }
+          }
+          Write-Host 'G5_CODEX_DIAG_SYNTAX_PASS'

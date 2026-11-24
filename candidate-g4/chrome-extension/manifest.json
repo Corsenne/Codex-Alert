@@ -1,0 +1,19 @@
+{
+  "manifest_version": 3,
+  "name": "Finish Alert G4 Manual Test (NO MONITORING)",
+  "version": "0.1.0",
+  "description": "Isolated G4 manual test for ChatGPT and Codex shared FIFO; no response monitoring.",
+  "permissions": [
+    "nativeMessaging",
+    "tabs",
+    "windows",
+    "storage"
+  ],
+  "action": {
+    "default_title": "G4 manual test",
+    "default_popup": "popup.html"
+  },
+  "background": {
+    "service_worker": "background.js"
+  }
+}

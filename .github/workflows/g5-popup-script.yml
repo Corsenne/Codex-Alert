@@ -1,0 +1,29 @@
+name: G5 Popup Script Load Regression
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/extension/popup.html'
+      - 'release/Repair-Activated-Popup.ps1'
+      - 'release/tests/Test-G5-Popup-Script.ps1'
+      - 'G5-Repair-Popup.cmd'
+      - '.github/workflows/g5-popup-script.yml'
+  pull_request:
+    paths:
+      - 'release/extension/popup.html'
+      - 'release/Repair-Activated-Popup.ps1'
+      - 'release/tests/Test-G5-Popup-Script.ps1'
+      - 'G5-Repair-Popup.cmd'
+      - '.github/workflows/g5-popup-script.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Popup JavaScript load and local repair safety
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File release/tests/Test-G5-Popup-Script.ps1
+          if($LASTEXITCODE -ne 0){throw 'G5_POPUP_SCRIPT_HOLD'}

@@ -1,0 +1,35 @@
+'use strict';
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
+const root = path.resolve(__dirname,'..');
+const html = fs.readFileSync(path.join(root,'popup.html'),'utf8');
+const css = fs.readFileSync(path.join(root,'popup.css'),'utf8');
+const js = fs.readFileSync(path.join(root,'popup.js'),'utf8');
+const bg = fs.readFileSync(path.join(root,'background.js'),'utf8');
+const manifest=JSON.parse(fs.readFileSync(path.join(root,'manifest.json'),'utf8'));
+assert.equal(manifest.version,'1.2.0');
+assert(!html.includes('Windows連携'),'connection diagnostic is hidden in compact UI');
+assert(!html.includes('LOCAL ONLY'),'removed footer');
+assert(!html.includes('class="section-label"'),'removed redundant section headers');
+assert(!html.includes('class="hint"'),'removed explanation text');
+assert(!html.includes('<footer'),'removed footer element');
+const row=html.match(/<div class="sound-row">([\s\S]*?)<\/div>/)?.[1];
+assert(row && row.includes('id="soundId"') && row.includes('id="previewSound"'),'sound chooser and audition are siblings in a single row');
+assert(css.includes('display:flex;align-items:stretch;gap:7px'),'single sound row uses flex layout');
+assert(css.includes('.presence.has-unread .presence-dot{background:#a1daf3'),'unread state is light blue');
+assert(html.includes('<option value="female">女性</option>'),'female voice choice exists');
+assert(html.includes('id="soundVolume"') && html.includes('type="range"'),'volume slider exists');
+assert(html.includes('id="volumeValue"'),'slider value is displayed');
+assert(js.includes('soundVolume:85') && js.includes("chrome.storage.local.set({soundVolume:"),'volume is persisted');
+assert(css.includes('.volume-row{display:flex'),'slider is compact horizontal control');
+assert(css.includes('.presence-dot{width:10px;height:10px') && css.includes('background:#627d90'),'read state is muted gray');
+assert(!js.includes("$('nativeStatus')"),'popup does not fetch visible Native status');
+assert(bg.includes("await chrome.action.setBadgeText({text:''});"),'old yellow text badge is cleared');
+assert(bg.includes('await chrome.action.setIcon('),'icon toggles based on unread status');
+for(const size of (manifest.action.default_icon && [16,48,128] || [])){
+ const file=path.join(root,`assets/icon${size}-unread.png`);
+ assert(fs.existsSync(file),`cyan dot icon ${size}px must exist`);
+ assert(fs.statSync(file).size>150,`cyan dot icon ${size}px is not empty`);
+}
+console.log('PASS compact popup v1.2.0: female option, saved volume slider, light-blue dot, no counters/history');

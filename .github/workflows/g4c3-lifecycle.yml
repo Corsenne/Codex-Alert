@@ -1,0 +1,49 @@
+name: G4C3 Isolated Bridge Lifecycle Gate
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'tools/G4C3-Lifecycle.ps1'
+      - 'G4C3-*.cmd'
+      - 'candidate-g4c2/tests/g4c3-lifecycle.test.mjs'
+      - '.github/workflows/g4c3-lifecycle.yml'
+  pull_request:
+    paths:
+      - 'tools/G4C3-Lifecycle.ps1'
+      - 'G4C3-*.cmd'
+      - 'candidate-g4c2/tests/g4c3-lifecycle.test.mjs'
+      - '.github/workflows/g4c3-lifecycle.yml'
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test candidate-g4c2/tests/g4c3-lifecycle.test.mjs
+  windows-read-only:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse lifecycle PowerShell under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens=$null;$errorsFound=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile(
+            'tools/G4C3-Lifecycle.ps1',[ref]$tokens,[ref]$errorsFound)
+          if(@($errorsFound).Count -ne 0){throw 'G4C3_POWERSHELL_AST_HOLD'}
+          Write-Host 'G4C3_POWERSHELL_AST_PASS'
+      - name: Read-only snapshot on clean CI runner
+        shell: powershell
+        run: |
+          $out=@(& powershell.exe -NoProfile -ExecutionPolicy Bypass -File 'tools/G4C3-Lifecycle.ps1' -Mode Snapshot)
+          $exit=$LASTEXITCODE
+          if($exit -ne 0 -or $out -notcontains 'G4C3_SNAPSHOT_PASS_NO_MUTATION'){
+            $out | Select-Object -Last 14 | ForEach-Object {Write-Host $_}
+            throw 'G4C3_CI_SNAPSHOT_HOLD'
+          }
+          Write-Host 'G4C3_CI_SNAPSHOT_PASS'

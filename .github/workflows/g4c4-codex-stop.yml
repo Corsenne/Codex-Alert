@@ -1,0 +1,36 @@
+name: G4C4 Codex Stop Ingress Source Tests
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'candidate-g4/Codex-Stop-to-G4.ps1'
+      - 'tools/G4C4-Test-Codex-Stop.ps1'
+      - 'G4C4-Test-Codex-Stop.cmd'
+      - '.github/workflows/g4c4-codex-stop.yml'
+  pull_request:
+    paths:
+      - 'candidate-g4/Codex-Stop-to-G4.ps1'
+      - 'tools/G4C4-Test-Codex-Stop.ps1'
+      - 'G4C4-Test-Codex-Stop.cmd'
+      - '.github/workflows/g4c4-codex-stop.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse Windows PowerShell scripts
+        shell: powershell
+        run: |
+          foreach ($path in @('candidate-g4/Codex-Stop-to-G4.ps1','tools/G4C4-Test-Codex-Stop.ps1')) {
+            $tokens=$null; $errorsFound=$null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($path,[ref]$tokens,[ref]$errorsFound)
+            if (@($errorsFound).Count -ne 0) { throw 'G4C4_POWERSHELL_PARSER_HOLD' }
+          }
+          Write-Host 'G4C4_POWERSHELL_PARSER_PASS'
+      - name: Verify Codex Stop adapter with isolated rollout session
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools/G4C4-Test-Codex-Stop.ps1
+          if ($LASTEXITCODE -ne 0) { throw 'G4C4_SOURCE_TEST_FAILED' }

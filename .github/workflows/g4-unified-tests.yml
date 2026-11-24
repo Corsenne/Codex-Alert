@@ -1,0 +1,81 @@
+name: G4 Unified FIFO Source and Windows Build
+on:
+  push:
+    branches:
+      - feature/codex-finish-alert-g0-g2
+    paths:
+      - 'candidate-g4/**'
+      - 'tools/G4-CI-Desktop.ps1'
+      - 'tools/G4-Build.ps1'
+      - 'tools/G4-Synthetic-Test.ps1'
+      - 'candidate-g4/scripts/Send-G4-Mixed.ps1'
+      - 'G4-*.cmd'
+      - 'G4B-*.cmd'
+      - 'tools/G4B-*.ps1'
+      - '.github/workflows/g4-unified-tests.yml'
+  pull_request:
+    paths:
+      - 'candidate-g4/**'
+      - 'tools/G4-CI-Desktop.ps1'
+      - 'tools/G4-Build.ps1'
+      - 'tools/G4-Synthetic-Test.ps1'
+      - 'candidate-g4/scripts/Send-G4-Mixed.ps1'
+      - 'G4-*.cmd'
+      - 'G4B-*.cmd'
+      - 'tools/G4B-*.ps1'
+      - '.github/workflows/g4-unified-tests.yml'
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+permissions:
+  contents: read
+jobs:
+  model:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Verify G4 isolated Chrome, queue and click contracts
+        run: |
+          node --test candidate-g4/chrome-extension/tests/*.test.mjs
+          node candidate-g4/chrome-extension/tests/callback-flow.cjs
+          node --test candidate-g4/desktop/tests/g4-contract.test.mjs
+          node --test candidate-g4/tests/g4b-operator-contract.test.mjs
+  windows-native-bridge:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Test and compile G4 Native Messaging bridge
+        shell: pwsh
+        run: |
+          cargo test --manifest-path candidate-g4/native-host/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          cargo build --manifest-path candidate-g4/native-host/Cargo.toml
+          if ($LASTEXITCODE -ne 0) { exit 1 }
+          Write-Host 'G4_WINDOWS_NATIVE_BRIDGE_PASS'
+  windows-tauri:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Parse G4 CI script under Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens=$null; $errs=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile('tools/G4-CI-Desktop.ps1',[ref]$tokens,[ref]$errs)
+          if (@($errs).Count -gt 0) { throw 'G4_CI_POWERSHELL_PARSER_HOLD' }
+          foreach ($name in @('tools/G4-Build.ps1','tools/G4-Synthetic-Test.ps1','candidate-g4/scripts/Send-G4-Mixed.ps1','tools/G4B-Register.ps1','tools/G4B-Start.ps1','tools/G4B-Cleanup.ps1','tools/G4B-Codex-Test.ps1')) {
+            $tokens = $null; $errorsFound = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($name,[ref]$tokens,[ref]$errorsFound)
+            if (@($errorsFound).Count -gt 0) { throw 'G4_USER_RUNNER_PARSER_HOLD' }
+          }
+          Write-Host 'G4_CI_POWERSHELL_PARSER_PASS'
+      - name: Full isolated G4 desktop build with generated silent audio/icons
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File tools\G4-CI-Desktop.ps1
+          if ($LASTEXITCODE -ne 0) { exit 1 }

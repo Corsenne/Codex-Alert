@@ -1,0 +1,25 @@
+<!doctype html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline'; connect-src ipc: http://ipc.localhost; img-src 'self' data:; style-src 'self' 'unsafe-inline'">
+<title>FINISH ALERT G2B DIAGNOSTIC</title>
+<script>
+(function () {
+  // Fixed, non-content diagnostic stages only; never log URLs, messages or identifiers.
+  var allowed = {
+    G2B_HTML_INLINE_EXECUTED: true, G2B_DOM_READY: true,
+    G2B_JS_ERROR: true, G2B_JS_UNHANDLED_REJECTION: true
+  };
+  window.__g2bTrace = function(stage) {
+    if (!allowed[stage]) return;
+    try {
+      var api = window.__TAURI_INTERNALS__;
+      if (api && typeof api.invoke === "function") {
+        Promise.resolve(api.invoke("g2b_diagnostic", {stage: stage})).catch(function(){});
+      }
+    } catch (_) {}
+  };
+  window.addEventListener("error", function(){window.__g2bTrace("G2B_JS_ERROR");}, true);
+  window.addEventListener("unhandledrejection", function(){window.__g2bTrace("G2B_JS_UNHANDLED_REJECTION");});
+  window.__g2bTrace("G2B_HTML_INLINE_EXECUTED");
+  document.addEventListener("DOMContentLoaded",function(){window.__g2bTrace("G2B_DOM_READY");});
+})();
+</script></head><body><div id="root"></div><script type="module" src="/src/main.tsx"></script></body></html>
