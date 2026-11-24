@@ -1,0 +1,29 @@
+name: G5 Popup Diagnostic Availability
+on:
+  push:
+    branches: [feature/codex-finish-alert-g0-g2]
+    paths:
+      - 'release/extension/popup.js'
+      - 'release/Repair-Activated-Diagnostics.ps1'
+      - 'release/tests/Test-G5-Diagnostics.ps1'
+      - 'G5-Repair-Diagnostics.cmd'
+      - '.github/workflows/g5-diagnostics.yml'
+  pull_request:
+    paths:
+      - 'release/extension/popup.js'
+      - 'release/Repair-Activated-Diagnostics.ps1'
+      - 'release/tests/Test-G5-Diagnostics.ps1'
+      - 'G5-Repair-Diagnostics.cmd'
+      - '.github/workflows/g5-diagnostics.yml'
+permissions:
+  contents: read
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate visible status and read-only repair prep
+        shell: powershell
+        run: |
+          & powershell.exe -NoProfile -ExecutionPolicy Bypass -File release/tests/Test-G5-Diagnostics.ps1
+          if($LASTEXITCODE -ne 0){throw 'G5_DIAG_STATUS_TEST_HOLD'}
