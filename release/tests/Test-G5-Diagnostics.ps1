@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference='Stop'
 $repo=Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $js=[IO.File]::ReadAllText((Join-Path $repo 'release\extension\popup.js'),[Text.Encoding]::UTF8)
-foreach($part in @('G4C2_STATUS','status-timeout','Promise.race','clearTimeout(timer)','接続状態を確認中')){
+foreach($part in @('G4C2_STATUS','status-timeout','Promise.race','clearTimeout(timer)','target.textContent')){
  if(-not $js.Contains($part)){throw 'G5_DIAG_STATUS_MISSING'}
 }
 $path=Join-Path $repo 'release\Repair-Activated-Diagnostics.ps1'
